@@ -1,0 +1,25 @@
+.summary-card {
+  background: #ffffff;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1.5px solid #f9d7a4;
+  box-shadow: 0 6px 20px rgba(34, 34, 34, 0.06);
+  text-align: left;
+  flex: 1;
+  min-width: 180px;
+}
+
+.summary-card h3 {
+  font-size: 14px;
+  color: #8a151f;
+  margin-bottom: 6px;
+  font-weight: 700;
+  letter-spacing: 0.1px;
+}
+
+.summary-card p {
+  font-size: 28px;
+  font-weight: 700;
+  color: #22223b;
+  margin: 0;
+}

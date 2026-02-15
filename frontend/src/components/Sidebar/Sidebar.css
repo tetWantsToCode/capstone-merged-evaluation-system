@@ -1,0 +1,37 @@
+.sidebar {
+  width: 260px;
+  height: 100vh;
+  background: #8a151f;
+  border-right: 1px solid #70101a;
+  padding: 28px 24px;
+  position: fixed;
+  color: #fff;
+  box-shadow: 6px 0 18px rgba(0,0,0,0.08);
+}
+
+.sidebar h2 {
+  font-size: 16px;
+  color: #fff;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sidebar ul li {
+  padding: 12px;
+  font-size: 14px;
+  color: #ffe8c7;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.sidebar ul li:hover {
+  background: rgba(255, 200, 130, 0.18);
+  color: #fff;
+}

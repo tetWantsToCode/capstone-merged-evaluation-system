@@ -1,0 +1,21 @@
+/* -------------------------
+          TABLE STYLE
+-------------------------- */
+
+.table-default {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .table-default th {
+    background: #2a3f54;
+    color: white;
+    padding: 12px;
+  }
+  
+  .table-default td {
+    padding: 12px;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  
