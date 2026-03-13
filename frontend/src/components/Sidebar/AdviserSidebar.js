@@ -7,6 +7,7 @@ const AdviserSidebar = () => {
   const navigate = useNavigate();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [user, setUser] = useState(null);
+  const [forceOpen, setForceOpen] = useState(() => sessionStorage.getItem('sidebarForceOpen') === '1');
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -26,9 +27,25 @@ const AdviserSidebar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!forceOpen) return;
+
+    const timer = setTimeout(() => {
+      sessionStorage.removeItem('sidebarForceOpen');
+      setForceOpen(false);
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [forceOpen]);
+
   const handleLogout = () => {
     authAPI.logout();
     navigate("/login");
+  };
+
+  const handleNavigate = (path) => {
+    sessionStorage.setItem('sidebarForceOpen', '1');
+    navigate(path);
   };
 
   const getInitials = () => {
@@ -39,16 +56,16 @@ const AdviserSidebar = () => {
   };
 
   return (
-    <div className="sidebar">
+    <div className={`sidebar${forceOpen ? ' sidebar-force-open' : ''}`}>
       <h2>Adviser Panel</h2>
       <ul>
-        <li onClick={() => navigate("/adviser/dashboard")}>
+        <li onClick={() => handleNavigate("/adviser/dashboard")}>
           Dashboard
         </li>
-        <li onClick={() => navigate("/adviser/dashboard")}>
+        <li onClick={() => handleNavigate("/adviser/dashboard")}>
           Evaluations
         </li>
-        <li onClick={() => navigate("/adviser/completed")}>
+        <li onClick={() => handleNavigate("/adviser/completed")}>
           Completed
         </li>
       </ul>
@@ -63,7 +80,7 @@ const AdviserSidebar = () => {
             <div className="profile-dropdown-header">
               <span className="dropdown-email">{user?.email}</span>
             </div>
-            <div className="profile-dropdown-item" onClick={() => { navigate('/profile'); setShowProfileMenu(false); }}>
+            <div className="profile-dropdown-item" onClick={() => { handleNavigate('/profile'); setShowProfileMenu(false); }}>
               Profile
             </div>
             <div className="profile-dropdown-item profile-dropdown-logout" onClick={handleLogout}>

@@ -31,44 +31,49 @@ const Teams = () => {
   });
 
   useEffect(() => {
-    loadClasses();
-    loadStudents();
-    loadAdvisers();
+    const loadInitialData = async () => {
+      try {
+        setLoading(true);
+        const [teacherClasses] = await Promise.all([
+          loadClasses(),
+          loadStudents(),
+          loadAdvisers(),
+        ]);
+
+        if (teacherClasses && teacherClasses.length > 0) {
+          await loadTeams(teacherClasses);
+        } else {
+          setTeams([]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialData();
   }, []);
 
-  useEffect(() => {
-    // Load teams after classes are loaded
-    if (classes.length > 0) {
-      loadTeams();
-    }
-  }, [classes]);
-
-  const loadTeams = async () => {
+  const loadTeams = async (classesSource = classes) => {
     try {
-      setLoading(true);
       const data = await teamAPI.getAllTeams();
       // Filter teams to only show those from this teacher's classes
-      const classIds = classes.map(c => c.id);
+      const classIds = classesSource.map(c => c.id);
       const teacherTeams = data.filter(t => classIds.includes(t.classId));
       setTeams(teacherTeams);
       setError(null);
     } catch (err) {
       setError("Failed to load teams: " + err.message);
       toast.error("Failed to load teams: " + err.message);
-    } finally {
-      setLoading(false);
     }
   };
 
   const loadClasses = async () => {
     try {
-      setLoading(true);
       // Get logged-in teacher's ID
       const user = JSON.parse(localStorage.getItem('user'));
       if (!user || !user.id) {
         setError("User not logged in");
-        setLoading(false);
-        return;
+        return [];
       }
       
       // Fetch only this teacher's classes
@@ -76,10 +81,10 @@ const Teams = () => {
       const teacherClasses = data.filter(c => c.teacherId === user.id);
       setClasses(teacherClasses);
       setError(null);
+      return teacherClasses;
     } catch (err) {
       toast.error("Failed to load classes");
-    } finally {
-      setLoading(false);
+      return [];
     }
   };
 
@@ -242,17 +247,6 @@ const Teams = () => {
     return advisers.filter(a => !selectedTeam.adviserIds.includes(a.id));
   };
 
-  if (loading) {
-    return (
-      <div className="teacher-container">
-        <TeacherSidebar />
-        <div className="teacher-content">
-          <p>Loading teams...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="teacher-container">
       <TeacherSidebar />
@@ -266,7 +260,9 @@ const Teams = () => {
             <h2>Your Teams</h2>
             <button className="btn" onClick={() => setShowCreateModal(true)}>Create New Team</button>
           </div>
-          {teams.length === 0 ? (
+          {loading ? (
+            <p>Loading teams...</p>
+          ) : teams.length === 0 ? (
             <p>No teams found. Create your first team to get started.</p>
           ) : (
             <table className="class-table">

@@ -3,7 +3,7 @@
   --dtm-maroon-dark: #6c0f17;
   --dtm-gold: #f2c94c;
   --dtm-bg: #1a0a0c;
-  --dtm-card: rgba(255, 255, 255, 0.06);
+  --dtm-card: #3b252b;
   --dtm-card-border: rgba(255, 255, 255, 0.12);
   --dtm-border: rgba(255, 255, 255, 0.10);
   --dtm-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -176,30 +176,6 @@
   box-shadow: none;
 }
 
-.btn-unlink {
-  padding: 10px 20px;
-  background: linear-gradient(135deg, rgba(197, 34, 31, 0.85), rgba(165, 14, 14, 0.85));
-  color: white;
-  border: 1px solid rgba(197, 34, 31, 0.4);
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
-  width: fit-content;
-  box-shadow: 0 4px 12px rgba(197, 34, 31, 0.3);
-  min-height: 40px;
-}
-
-.btn-unlink:hover {
-  background: linear-gradient(135deg, rgba(197, 34, 31, 1), rgba(165, 14, 14, 1));
-  box-shadow: 0 6px 20px rgba(165, 14, 14, 0.4);
-  transform: translateY(-1px);
-}
-
-.btn-unlink:active {
-  transform: scale(0.98);
-}
 
 .info-text {
   color: var(--dtm-muted);
@@ -248,8 +224,7 @@
     gap: 6px;
   }
 
-  .btn-link-google,
-  .btn-unlink {
+  .btn-link-google {
     width: 100%;
     justify-content: center;
   }
@@ -273,8 +248,4 @@
     font-size: 13px;
   }
 
-  .btn-unlink {
-    padding: 10px 18px;
-    font-size: 13px;
-  }
 }

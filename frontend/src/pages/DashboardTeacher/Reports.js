@@ -145,17 +145,6 @@ const Reports = () => {
     }
   };
 
-  if (loading && !selectedQuestionnaire) {
-    return (
-      <div className="teacher-container">
-        <TeacherSidebar />
-        <div className="teacher-content">
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="teacher-container">
       <TeacherSidebar />
@@ -167,7 +156,9 @@ const Reports = () => {
         {!selectedQuestionnaire ? (
           <div className="section">
             <h2>Select a Questionnaire</h2>
-            {questionnaires.length === 0 ? (
+            {loading ? (
+              <p>Loading questionnaires...</p>
+            ) : questionnaires.length === 0 ? (
               <p>No questionnaires found. Create a questionnaire first.</p>
             ) : (
               <table className="class-table">

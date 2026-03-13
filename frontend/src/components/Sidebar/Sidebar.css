@@ -21,7 +21,8 @@
   overflow: hidden;
 }
 
-.sidebar:hover {
+.sidebar:hover,
+.sidebar.sidebar-force-open {
   width: 260px;
   padding-left: 24px;
   padding-right: 24px;
@@ -50,7 +51,8 @@
   transition: opacity 0.3s ease;
 }
 
-.sidebar:hover::before {
+.sidebar:hover::before,
+.sidebar.sidebar-force-open::before {
   opacity: 1;
 }
 
@@ -73,7 +75,8 @@
   padding: 0 12px;
 }
 
-.sidebar:hover h2 {
+.sidebar:hover h2,
+.sidebar.sidebar-force-open h2 {
   opacity: 1;
   transform: translateX(0);
 }
@@ -100,33 +103,46 @@
               background 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
 }
 
-.sidebar:hover ul li {
+.sidebar:hover ul li,
+.sidebar.sidebar-force-open ul li {
   opacity: 1;
   transform: translateX(0);
 }
 
-.sidebar:hover ul li:nth-child(1) { transition-delay: 0.04s; }
-.sidebar:hover ul li:nth-child(2) { transition-delay: 0.06s; }
-.sidebar:hover ul li:nth-child(3) { transition-delay: 0.08s; }
-.sidebar:hover ul li:nth-child(4) { transition-delay: 0.10s; }
-.sidebar:hover ul li:nth-child(5) { transition-delay: 0.12s; }
-.sidebar:hover ul li:nth-child(6) { transition-delay: 0.14s; }
-.sidebar:hover ul li:nth-child(7) { transition-delay: 0.16s; }
-.sidebar:hover ul li:nth-child(8) { transition-delay: 0.18s; }
+.sidebar:hover ul li:nth-child(1),
+.sidebar.sidebar-force-open ul li:nth-child(1) { transition-delay: 0.04s; }
+.sidebar:hover ul li:nth-child(2),
+.sidebar.sidebar-force-open ul li:nth-child(2) { transition-delay: 0.06s; }
+.sidebar:hover ul li:nth-child(3),
+.sidebar.sidebar-force-open ul li:nth-child(3) { transition-delay: 0.08s; }
+.sidebar:hover ul li:nth-child(4),
+.sidebar.sidebar-force-open ul li:nth-child(4) { transition-delay: 0.10s; }
+.sidebar:hover ul li:nth-child(5),
+.sidebar.sidebar-force-open ul li:nth-child(5) { transition-delay: 0.12s; }
+.sidebar:hover ul li:nth-child(6),
+.sidebar.sidebar-force-open ul li:nth-child(6) { transition-delay: 0.14s; }
+.sidebar:hover ul li:nth-child(7),
+.sidebar.sidebar-force-open ul li:nth-child(7) { transition-delay: 0.16s; }
+.sidebar:hover ul li:nth-child(8),
+.sidebar.sidebar-force-open ul li:nth-child(8) { transition-delay: 0.18s; }
 
-.sidebar:hover ul {
+.sidebar:hover ul,
+.sidebar.sidebar-force-open ul {
   overflow-y: auto;
 }
 
-.sidebar:hover ul::-webkit-scrollbar {
+.sidebar:hover ul::-webkit-scrollbar,
+.sidebar.sidebar-force-open ul::-webkit-scrollbar {
   width: 4px;
 }
 
-.sidebar:hover ul::-webkit-scrollbar-track {
+.sidebar:hover ul::-webkit-scrollbar-track,
+.sidebar.sidebar-force-open ul::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.sidebar:hover ul::-webkit-scrollbar-thumb {
+.sidebar:hover ul::-webkit-scrollbar-thumb,
+.sidebar.sidebar-force-open ul::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 4px;
 }
@@ -146,32 +162,33 @@
   margin-top: auto;
   padding: 16px 0 0 0;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
-  justify-content: center;
-  transition: padding 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.sidebar:hover .sidebar-profile {
-  justify-content: stretch;
 }
 
 .profile-avatar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 10px;
-  border-radius: 12px;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0;
+  border-radius: 50%;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: width 0.3s ease, padding 0.3s ease, border-radius 0.3s ease,
+              gap 0.3s ease, margin 0.3s ease, background 0.2s ease, border-color 0.2s ease;
   border: 1px solid transparent;
-  width: 100%;
+  width: 38px;
+  height: 38px;
+  margin: 0 11px;
   box-sizing: border-box;
 }
 
-.sidebar:hover .profile-avatar {
-  justify-content: flex-start;
-  padding: 10px 12px;
+.sidebar:hover .profile-avatar,
+.sidebar.sidebar-force-open .profile-avatar {
+  gap: 12px;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  margin: 0 0;
+  border-radius: 12px;
   border-color: rgba(255, 255, 255, 0.06);
 }
 
@@ -203,13 +220,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   opacity: 0;
-  width: 0;
-  transition: opacity 0.2s ease, width 0.3s ease;
+  max-width: 0;
+  transform: translateX(-4px);
+  transition: opacity 0.2s ease, max-width 0.3s ease, transform 0.3s ease;
 }
 
-.sidebar:hover .avatar-name {
+.sidebar:hover .avatar-name,
+.sidebar.sidebar-force-open .avatar-name {
   opacity: 1;
-  width: auto;
+  max-width: 140px;
+  transform: translateX(0);
 }
 
 .profile-dropdown {

@@ -155,8 +155,6 @@ function Login() {
             />
           </h3>
 
-        {error && <div className="error-message">{error}</div>}
-
         <div className="google-button-container">
           <button
             onClick={handleGoogleLogin}

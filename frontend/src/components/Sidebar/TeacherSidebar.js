@@ -7,6 +7,7 @@ const TeacherSidebar = () => {
   const navigate = useNavigate();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [user, setUser] = useState(null);
+  const [forceOpen, setForceOpen] = useState(() => sessionStorage.getItem('sidebarForceOpen') === '1');
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -26,9 +27,25 @@ const TeacherSidebar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!forceOpen) return;
+
+    const timer = setTimeout(() => {
+      sessionStorage.removeItem('sidebarForceOpen');
+      setForceOpen(false);
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [forceOpen]);
+
   const handleLogout = () => {
     authAPI.logout();
     navigate('/login');
+  };
+
+  const handleNavigate = (path) => {
+    sessionStorage.setItem('sidebarForceOpen', '1');
+    navigate(path);
   };
 
   const getInitials = () => {
@@ -39,17 +56,16 @@ const TeacherSidebar = () => {
   };
 
   return (
-    <div className="sidebar">
+    <div className={`sidebar${forceOpen ? ' sidebar-force-open' : ''}`}>
       <h2>Teacher Panel</h2>
       <ul>
-        <li onClick={() => navigate('/teacher/dashboard')}>Dashboard</li>
-        <li onClick={() => navigate('/teacher/classes')}>Classes</li>
-        <li onClick={() => navigate('/teacher/teams')}>Teams</li>
-        <li onClick={() => navigate('/teacher/students')}>Students</li>
-        <li onClick={() => navigate('/teacher/advisers')}>Advisers</li>
-        <li onClick={() => navigate('/teacher/user-management')}>User Management</li>
-        <li onClick={() => navigate('/teacher/questionnaires')}>Questionnaires</li>
-        <li onClick={() => navigate('/teacher/reports')}>Reports</li>
+        <li onClick={() => handleNavigate('/teacher/dashboard')}>Dashboard</li>
+        <li onClick={() => handleNavigate('/teacher/classes')}>Classes</li>
+        <li onClick={() => handleNavigate('/teacher/teams')}>Teams</li>
+        <li onClick={() => handleNavigate('/teacher/students')}>Students</li>
+        <li onClick={() => handleNavigate('/teacher/advisers')}>Advisers</li>
+        <li onClick={() => handleNavigate('/teacher/questionnaires')}>Questionnaires</li>
+        <li onClick={() => handleNavigate('/teacher/reports')}>Reports</li>
       </ul>
 
       <div className="sidebar-profile" ref={menuRef}>
@@ -62,7 +78,12 @@ const TeacherSidebar = () => {
             <div className="profile-dropdown-header">
               <span className="dropdown-email">{user?.email}</span>
             </div>
-            <div className="profile-dropdown-item" onClick={() => { navigate('/profile'); setShowProfileMenu(false); }}>
+            {user?.role === 'TEACHER' && (
+              <div className="profile-dropdown-item" onClick={() => { handleNavigate('/teacher/user-management'); setShowProfileMenu(false); }}>
+                User Management
+              </div>
+            )}
+            <div className="profile-dropdown-item" onClick={() => { handleNavigate('/profile'); setShowProfileMenu(false); }}>
               Profile
             </div>
             <div className="profile-dropdown-item profile-dropdown-logout" onClick={handleLogout}>

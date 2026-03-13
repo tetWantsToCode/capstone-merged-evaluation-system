@@ -7,7 +7,7 @@
   --dtm-maroon-dark: #6c0f17;
   --dtm-gold: #f2c94c;
   --dtm-bg: #1a0a0c;
-  --dtm-card-bg: rgba(255, 255, 255, 0.06);
+  --dtm-card-bg: #3b252b;
   --dtm-card-border: rgba(255, 255, 255, 0.12);
   --dtm-outline: rgba(255, 255, 255, 0.10);
   --dtm-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -81,7 +81,8 @@
     letter-spacing: 1px;
   }
 
-  .sidebar:hover ~ .adviser-content {
+  .sidebar:hover ~ .adviser-content,
+  .sidebar.sidebar-force-open ~ .adviser-content {
     margin-left: 280px;
   }
   
