@@ -263,6 +263,19 @@ const Reports = () => {
                   </div>
                 </div>
               ))}
+
+              {aiLoading && (
+                <div className="ai-chat-row is-assistant ai-chat-typing">
+                  <div className="ai-chat-bubble">
+                    <div className="ai-chat-meta">AI</div>
+                    <div className="ai-typing-dots" aria-label="AI is typing" role="status">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="ai-chat-composer">
