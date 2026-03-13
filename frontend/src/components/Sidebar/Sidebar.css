@@ -112,6 +112,7 @@
 .sidebar:hover ul li:nth-child(5) { transition-delay: 0.12s; }
 .sidebar:hover ul li:nth-child(6) { transition-delay: 0.14s; }
 .sidebar:hover ul li:nth-child(7) { transition-delay: 0.16s; }
+.sidebar:hover ul li:nth-child(8) { transition-delay: 0.18s; }
 
 .sidebar:hover ul {
   overflow-y: auto;

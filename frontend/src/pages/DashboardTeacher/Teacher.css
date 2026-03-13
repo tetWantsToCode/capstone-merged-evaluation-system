@@ -226,6 +226,21 @@
     z-index: 1000;
   }
 
+  .teacher-modal-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 2000;
+    padding: 16px;
+    box-sizing: border-box;
+  }
+
+  .teacher-modal-overlay .modal-content {
+    margin: 0 auto;
+  }
+
   .modal-content {
     background: rgba(30, 15, 18, 0.95);
     backdrop-filter: blur(24px);
@@ -307,7 +322,26 @@
   }
 
   .modal-large {
-    max-width: 900px;
+    width: min(96vw, 1200px);
+    max-width: 1200px;
+  }
+
+  .table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .table-scroll .class-table {
+    min-width: 900px;
+    margin: 0;
+  }
+
+  .manage-class-table td,
+  .manage-class-table th {
+    white-space: nowrap;
   }
 
   .btn-primary {

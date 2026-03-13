@@ -160,6 +160,9 @@ const Classes = () => {
   };
 
   const handleManageClass = (classItem) => {
+    setShowCreateModal(false);
+    setShowAddStudentModal(false);
+    setShowAddQuestionnaireModal(false);
     setSelectedClass(classItem);
     // Filter students belonging to this class
     const filteredStudents = students.filter(s => s.classIds && s.classIds.includes(classItem.id));
@@ -338,7 +341,17 @@ const Classes = () => {
         <div className="section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2>Your Classes</h2>
-            <button className="btn" onClick={() => setShowCreateModal(true)}>Create New Class</button>
+            <button
+              className="btn"
+              onClick={() => {
+                setShowManageModal(false);
+                setShowAddStudentModal(false);
+                setShowAddQuestionnaireModal(false);
+                setShowCreateModal(true);
+              }}
+            >
+              Create New Class
+            </button>
           </div>
           {classes.length === 0 ? (
             <p>No classes found. Create your first class to get started.</p>
@@ -408,7 +421,7 @@ const Classes = () => {
 
       {/* Create Class Modal */}
       {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+        <div className="modal-overlay teacher-modal-overlay" onClick={() => setShowCreateModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Create New Class</h2>
             <form onSubmit={handleCreateClass}>
@@ -475,7 +488,7 @@ const Classes = () => {
 
       {/* Manage Class Modal */}
       {showManageModal && selectedClass && (
-        <div className="modal-overlay" onClick={() => setShowManageModal(false)}>
+        <div className="modal-overlay teacher-modal-overlay" onClick={() => setShowManageModal(false)}>
           <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
             <h2>Manage Class: {selectedClass.name} {selectedClass.section}</h2>
             <p><strong>School Year:</strong> {selectedClass.schoolYear}</p>
@@ -492,37 +505,39 @@ const Classes = () => {
               {classStudents.length === 0 ? (
                 <p>No students in this class yet.</p>
               ) : (
-                <table className="class-table" style={{ marginTop: "10px" }}>
-                  <thead>
-                    <tr>
-                      <th>Student ID</th>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th>Phone</th>
-                      <th>Team</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {classStudents.map((student) => (
-                      <tr key={student.id}>
-                        <td>{student.studentId}</td>
-                        <td>{student.firstName} {student.lastName}</td>
-                        <td>{student.email || "N/A"}</td>
-                        <td>{student.phoneNumber || "N/A"}</td>
-                        <td>{student.team?.name || "No Team"}</td>
-                        <td>
-                          <button 
-                            className="btn btn-sm btn-danger"
-                            onClick={() => handleRemoveStudent(student.id)}
-                          >
-                            Remove
-                          </button>
-                        </td>
+                <div className="table-scroll" style={{ marginTop: "10px" }}>
+                  <table className="class-table manage-class-table">
+                    <thead>
+                      <tr>
+                        <th>Student ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Team</th>
+                        <th>Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {classStudents.map((student) => (
+                        <tr key={student.id}>
+                          <td>{student.studentId}</td>
+                          <td>{student.firstName} {student.lastName}</td>
+                          <td>{student.email || "N/A"}</td>
+                          <td>{student.phoneNumber || "N/A"}</td>
+                          <td>{student.team?.name || "No Team"}</td>
+                          <td>
+                            <button 
+                              className="btn btn-sm btn-danger"
+                              onClick={() => handleRemoveStudent(student.id)}
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
 
@@ -537,35 +552,37 @@ const Classes = () => {
               {classQuestionnairesList.length === 0 ? (
                 <p>No questionnaires assigned to this class yet.</p>
               ) : (
-                <table className="class-table" style={{ marginTop: "10px" }}>
-                  <thead>
-                    <tr>
-                      <th>Title</th>
-                      <th>Description</th>
-                      <th>Questions</th>
-                      <th>Created Date</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {classQuestionnairesList.map((questionnaire) => (
-                      <tr key={questionnaire.id}>
-                        <td>{questionnaire.title}</td>
-                        <td>{questionnaire.description || "N/A"}</td>
-                        <td>{questionnaire.questionCount}</td>
-                        <td>{new Date(questionnaire.createdAt).toLocaleDateString()}</td>
-                        <td>
-                          <button 
-                            className="btn btn-sm btn-danger"
-                            onClick={() => handleRemoveQuestionnaire(questionnaire.id)}
-                          >
-                            Remove
-                          </button>
-                        </td>
+                <div className="table-scroll" style={{ marginTop: "10px" }}>
+                  <table className="class-table manage-class-table">
+                    <thead>
+                      <tr>
+                        <th>Title</th>
+                        <th>Description</th>
+                        <th>Questions</th>
+                        <th>Created Date</th>
+                        <th>Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {classQuestionnairesList.map((questionnaire) => (
+                        <tr key={questionnaire.id}>
+                          <td>{questionnaire.title}</td>
+                          <td>{questionnaire.description || "N/A"}</td>
+                          <td>{questionnaire.questionCount}</td>
+                          <td>{new Date(questionnaire.createdAt).toLocaleDateString()}</td>
+                          <td>
+                            <button 
+                              className="btn btn-sm btn-danger"
+                              onClick={() => handleRemoveQuestionnaire(questionnaire.id)}
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
 
@@ -580,7 +597,7 @@ const Classes = () => {
 
       {/* Add Student Modal */}
       {showAddStudentModal && (
-        <div className="modal-overlay" onClick={() => setShowAddStudentModal(false)}>
+        <div className="modal-overlay teacher-modal-overlay" onClick={() => setShowAddStudentModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Add New Student</h2>
             <form onSubmit={handleAddStudent}>
@@ -619,7 +636,7 @@ const Classes = () => {
 
       {/* Add Questionnaire Modal */}
       {showAddQuestionnaireModal && (
-        <div className="modal-overlay" onClick={() => setShowAddQuestionnaireModal(false)}>
+        <div className="modal-overlay teacher-modal-overlay" onClick={() => setShowAddQuestionnaireModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Add Questionnaire to Class</h2>
             <form onSubmit={handleAddQuestionnaire}>
