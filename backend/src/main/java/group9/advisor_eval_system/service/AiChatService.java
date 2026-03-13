@@ -19,6 +19,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AiChatService {
 
+        private static final int MAX_SAMPLE_TEXT_PER_ITEM = 3;
+        private static final int MAX_SAMPLE_GENERAL_COMMENTS = 5;
+
         private final GeminiClient geminiClient;
         private final SchoolClassRepository schoolClassRepository;
         private final QuestionnaireRepository questionnaireRepository;
@@ -40,8 +43,14 @@ public class AiChatService {
                 String systemInstruction = String.join("\n",
                                 "You are an AI assistant inside a capstone Adviser Evaluation System used by teachers.",
                                 "Default behavior: respond like a normal, helpful conversational assistant.",
+                                "Output style rules:",
+                                "- Keep output presentable and easy to scan.",
+                                "- Use plain text only (no markdown syntax).",
+                                "- Do not use markdown symbols such as **, __, #, or backticks.",
+                                "- Prefer short sections with labels and simple '-' bullets when helpful.",
                                 "Specialized behavior: ONLY switch into these modes when the user clearly asks:",
                                 "- REPORT_SUMMARY: summarize/interpret evaluation reports and results.",
+                                "- RESPONSE_SUMMARY: summarize questionnaire responses from respondents.",
                                 "- QUESTIONNAIRE_DESIGN: draft/improve questionnaire questions, scales, and wording.",
                                 "- QUESTIONNAIRE_RESPONSE: help write example responses or guidance for answering a questionnaire.",
                                 "",
@@ -54,14 +63,16 @@ public class AiChatService {
                                 "",
                                 "You will be given:",
                                 "- Teacher context (read-only)",
-                                "- Evaluation data (read-only) — actual scores, comments, and results from evaluations",
+                                "- Evaluation data summary (read-only) — computed from submitted respondent evaluations",
                                 "- Optional report/questionnaire context (read-only)",
                                 "- Optional conversation history",
                                 "- The latest user message",
                                 "",
-                                "When the user asks about evaluation results, scores, team performance, adviser performance,",
-                                "or anything related to evaluations, use the Evaluation data provided below to answer accurately.",
-                                "You can summarize, compare, identify trends, calculate averages, and explain the results.",
+                                "When the user asks about evaluation results, respondent feedback, questionnaire responses,",
+                                "team performance, adviser performance, or trends, use the Evaluation data summary below.",
+                                "This summary is already computed from all submitted respondent responses.",
+                                "Base the answer strictly on that data: summarize trends, averages, strengths, concerns, and actions.",
+                                "State how many respondent evaluations were analyzed when that information is available.",
                                 "",
                                 "MODE: " + intent.name());
 
@@ -69,7 +80,7 @@ public class AiChatService {
                 promptParts.add("Teacher context (read-only):\n" + safeBlock(teacherContext));
 
                 if (evaluationContext != null && !evaluationContext.isBlank()) {
-                        promptParts.add("Evaluation data (read-only):\n" + safeBlock(evaluationContext));
+                        promptParts.add("Evaluation data summary (read-only):\n" + safeBlock(evaluationContext));
                 }
 
                 if (extraContext != null && !extraContext.isBlank()) {
@@ -84,12 +95,14 @@ public class AiChatService {
 
                 String userPrompt = String.join("\n\n---\n\n", promptParts);
 
-                return geminiClient.generateText(systemInstruction, userPrompt);
+                String rawReply = geminiClient.generateText(systemInstruction, userPrompt);
+                return makePresentableText(rawReply);
         }
 
         private enum AiIntent {
                 GENERAL_CHAT,
                 REPORT_SUMMARY,
+                RESPONSE_SUMMARY,
                 QUESTIONNAIRE_DESIGN,
                 QUESTIONNAIRE_RESPONSE
         }
@@ -101,6 +114,19 @@ public class AiChatService {
                 // If the client explicitly tags reports, prefer report mode.
                 if (normalizedCtx.contains("report")) {
                         return AiIntent.REPORT_SUMMARY;
+                }
+
+                if (normalizedCtx.contains("response") || normalizedCtx.contains("feedback")
+                                || normalizedCtx.contains("questionnaire")) {
+                        return AiIntent.RESPONSE_SUMMARY;
+                }
+
+                // Response-focused summary questions.
+                if (containsAny(normalized,
+                                "respondent", "respondents", "response", "responses", "feedback", "comments",
+                                "questionnaire result", "questionnaire responses", "analyze responses",
+                                "scan responses", "what did they answer")) {
+                        return AiIntent.RESPONSE_SUMMARY;
                 }
 
                 // Reports / evaluation results.
@@ -200,91 +226,278 @@ public class AiChatService {
         private String buildEvaluationContext(User teacher) {
                 var questionnaires = questionnaireRepository.findByCreatedByTeacherIdAndIsActiveTrue(teacher.getId());
                 if (questionnaires.isEmpty()) {
-                        return "";
+                        return "No active questionnaires found for this teacher.";
                 }
 
                 StringBuilder sb = new StringBuilder();
-                int evalCount = 0;
-                int maxEvals = 50; // limit total evaluations to keep prompt size manageable
+                int questionnairesWithResponses = 0;
+                int totalSubmittedEvaluations = 0;
+                int totalScoreRows = 0;
 
                 for (var q : questionnaires) {
-                        if (evalCount >= maxEvals)
-                                break;
-
                         List<Evaluation> evaluations = evaluationRepository.findByQuestionnaireId(q.getId());
                         List<Evaluation> submitted = evaluations.stream()
-                                        .filter(e -> e.getStatus() == EvaluationStatus.SUBMITTED
-                                                        || e.getStatus() == EvaluationStatus.REVIEWED)
+                                        .filter(this::isSubmittedEvaluation)
                                         .collect(Collectors.toList());
 
                         if (submitted.isEmpty())
                                 continue;
 
+                        questionnairesWithResponses++;
+                        totalSubmittedEvaluations += submitted.size();
+
+                        List<QuestionnaireItem> items = q.getItems() != null
+                                        ? q.getItems().stream()
+                                                        .sorted(Comparator.comparingInt(QuestionnaireItem::getOrderIndex))
+                                                        .collect(Collectors.toList())
+                                        : Collections.emptyList();
+
+                        Map<Long, QuestionAggregate> questionAggregates = new LinkedHashMap<>();
+                        for (QuestionnaireItem item : items) {
+                                questionAggregates.put(item.getId(), QuestionAggregate.fromItem(item));
+                        }
+
+                        Set<String> teams = new LinkedHashSet<>();
+                        Set<String> advisers = new LinkedHashSet<>();
+                        int generalCommentCount = 0;
+                        List<String> generalCommentSamples = new ArrayList<>();
+                        Set<String> seenGeneralComments = new HashSet<>();
+
+                        for (Evaluation eval : submitted) {
+                                if (eval.getTeam() != null && eval.getTeam().getName() != null) {
+                                        teams.add(eval.getTeam().getName().trim());
+                                }
+                                if (eval.getAdviser() != null) {
+                                        String first = eval.getAdviser().getFirstName() == null ? ""
+                                                        : eval.getAdviser().getFirstName().trim();
+                                        String last = eval.getAdviser().getLastName() == null ? ""
+                                                        : eval.getAdviser().getLastName().trim();
+                                        String adviserName = (first + " " + last).trim();
+                                        if (!adviserName.isBlank()) {
+                                                advisers.add(adviserName);
+                                        }
+                                }
+
+                                String generalComment = normalizeText(eval.getGeneralComments());
+                                if (generalComment != null) {
+                                        generalCommentCount++;
+                                        if (generalCommentSamples.size() < MAX_SAMPLE_GENERAL_COMMENTS
+                                                        && seenGeneralComments.add(generalComment)) {
+                                                generalCommentSamples.add(generalComment);
+                                        }
+                                }
+
+                                Set<EvaluationScore> scores = eval.getScores();
+                                if (scores == null || scores.isEmpty()) {
+                                        continue;
+                                }
+
+                                for (EvaluationScore score : scores) {
+                                        totalScoreRows++;
+                                        QuestionnaireItem item = score.getQuestionnaireItem();
+                                        if (item == null || item.getId() == null) {
+                                                continue;
+                                        }
+
+                                        QuestionAggregate aggregate = questionAggregates.computeIfAbsent(
+                                                        item.getId(),
+                                                        ignored -> QuestionAggregate.fromItem(item));
+                                        aggregate.addScore(score);
+                                }
+                        }
+
                         sb.append("\n## Questionnaire: ").append(q.getTitle()).append("\n");
                         if (q.getDescription() != null && !q.getDescription().isBlank()) {
                                 sb.append("Description: ").append(q.getDescription()).append("\n");
                         }
-                        sb.append("Total submitted evaluations: ").append(submitted.size()).append("\n");
+                        sb.append("Submitted respondent evaluations: ").append(submitted.size()).append("\n");
+                        sb.append("Distinct teams: ").append(teams.size())
+                                        .append(teams.isEmpty() ? "" : " (" + summarizeCollection(teams, 6) + ")")
+                                        .append("\n");
+                        sb.append("Distinct advisers: ").append(advisers.size())
+                                        .append(advisers.isEmpty() ? "" : " (" + summarizeCollection(advisers, 6) + ")")
+                                        .append("\n");
+                        sb.append("General comments count: ").append(generalCommentCount).append("\n");
 
-                        // Collect all question texts from questionnaire items
-                        List<QuestionnaireItem> items = q.getItems() != null
-                                        ? q.getItems().stream()
-                                                        .sorted(Comparator
-                                                                        .comparingInt(QuestionnaireItem::getOrderIndex))
-                                                        .collect(Collectors.toList())
-                                        : Collections.emptyList();
-
-                        // Build per-evaluation details
-                        for (var eval : submitted) {
-                                if (evalCount >= maxEvals)
-                                        break;
-                                evalCount++;
-
-                                String teamName = eval.getTeam() != null ? eval.getTeam().getName() : "Unknown Team";
-                                String adviserName = eval.getAdviser() != null
-                                                ? eval.getAdviser().getFirstName() + " "
-                                                                + eval.getAdviser().getLastName()
-                                                : "Unknown Adviser";
-
-                                sb.append("\n### Team: ").append(teamName)
-                                                .append(" | Adviser: ").append(adviserName)
-                                                .append(" | Status: ").append(eval.getStatus()).append("\n");
-
-                                // Get scores for this evaluation
-                                Set<EvaluationScore> scores = eval.getScores();
-                                if (scores != null && !scores.isEmpty()) {
-                                        for (var score : scores) {
-                                                QuestionnaireItem item = score.getQuestionnaireItem();
-                                                String question = item != null ? item.getQuestionText()
-                                                                : "Unknown Question";
-                                                String type = item != null ? item.getQuestionType().name() : "UNKNOWN";
-
-                                                sb.append("  - Q: ").append(question);
-                                                sb.append(" [").append(type).append("]");
-
-                                                if (score.getNumericScore() != null) {
-                                                        sb.append(" Score: ").append(score.getNumericScore());
-                                                        if (item != null && item.getMaxScore() != null) {
-                                                                sb.append("/").append(item.getMaxScore());
-                                                        }
-                                                }
-                                                if (score.getTextResponse() != null
-                                                                && !score.getTextResponse().isBlank()) {
-                                                        sb.append(" Response: \"")
-                                                                        .append(score.getTextResponse().trim())
-                                                                        .append("\"");
-                                                }
-                                                sb.append("\n");
-                                        }
+                        if (!generalCommentSamples.isEmpty()) {
+                                sb.append("Sample general comments:\n");
+                                for (String sample : generalCommentSamples) {
+                                        sb.append("  - \"").append(shorten(sample, 240)).append("\"\n");
                                 }
+                        }
 
-                                if (eval.getGeneralComments() != null && !eval.getGeneralComments().isBlank()) {
-                                        sb.append("  General Comments: \"").append(eval.getGeneralComments().trim())
-                                                        .append("\"\n");
+                        sb.append("Question-level aggregates (computed from all submitted responses):\n");
+                        for (QuestionAggregate aggregate : questionAggregates.values()) {
+                                sb.append(aggregate.toSummaryLine()).append("\n");
+                                if (!aggregate.sampleTextResponses.isEmpty()) {
+                                        for (String sampleText : aggregate.sampleTextResponses) {
+                                                sb.append("    Example response: \"")
+                                                                .append(shorten(sampleText, 220))
+                                                                .append("\"\n");
+                                        }
                                 }
                         }
                 }
 
+                if (questionnairesWithResponses == 0) {
+                        return "No submitted evaluations found yet for this teacher's questionnaires.";
+                }
+
+                String header = String.join("\n",
+                                "Coverage summary:",
+                                "questionnairesWithResponses=" + questionnairesWithResponses,
+                                "submittedRespondentEvaluationsAnalyzed=" + totalSubmittedEvaluations,
+                                "scoreRowsScanned=" + totalScoreRows,
+                                "allSubmittedResponsesScanned=true");
+
+                sb.insert(0, header + "\n");
+
                 return sb.toString();
+        }
+
+        private boolean isSubmittedEvaluation(Evaluation evaluation) {
+                if (evaluation == null || evaluation.getStatus() == null) {
+                        return false;
+                }
+                return evaluation.getStatus() == EvaluationStatus.SUBMITTED
+                                || evaluation.getStatus() == EvaluationStatus.REVIEWED;
+        }
+
+        private String normalizeText(String value) {
+                if (value == null) {
+                        return null;
+                }
+                String trimmed = value.trim();
+                return trimmed.isBlank() ? null : trimmed;
+        }
+
+        private String shorten(String value, int maxLength) {
+                if (value == null) {
+                        return "";
+                }
+                if (value.length() <= maxLength) {
+                        return value;
+                }
+                return value.substring(0, maxLength) + "...";
+        }
+
+        private String summarizeCollection(Collection<String> values, int maxItems) {
+                if (values == null || values.isEmpty()) {
+                        return "";
+                }
+                return values.stream()
+                                .filter(Objects::nonNull)
+                                .map(String::trim)
+                                .filter(v -> !v.isBlank())
+                                .limit(maxItems)
+                                .collect(Collectors.joining(", "));
+        }
+
+        private String makePresentableText(String value) {
+                if (value == null) {
+                        return "";
+                }
+
+                String text = value.replace("\r\n", "\n").trim();
+
+                // Strip common markdown markers since the frontend renders plain text.
+                text = text.replace("**", "");
+                text = text.replace("__", "");
+                text = text.replace("`", "");
+
+                // Convert markdown headings and star bullets into plain-text equivalents.
+                text = text.replaceAll("(?m)^#{1,6}\\s*", "");
+                text = text.replaceAll("(?m)^\\*\\s+", "- ");
+
+                // Keep spacing compact and readable.
+                text = text.replaceAll("\\n{3,}", "\\n\\n");
+                return text.trim();
+        }
+
+        private static final class QuestionAggregate {
+                private final String questionText;
+                private final QuestionnaireItem.QuestionType questionType;
+                private final Integer minScore;
+                private final Integer maxScore;
+
+                private int numericCount = 0;
+                private double numericSum = 0.0;
+                private Double numericMin = null;
+                private Double numericMax = null;
+
+                private int textResponseCount = 0;
+                private final List<String> sampleTextResponses = new ArrayList<>();
+                private final Set<String> seenTextSamples = new HashSet<>();
+
+                private QuestionAggregate(String questionText, QuestionnaireItem.QuestionType questionType,
+                                Integer minScore, Integer maxScore) {
+                        this.questionText = questionText;
+                        this.questionType = questionType;
+                        this.minScore = minScore;
+                        this.maxScore = maxScore;
+                }
+
+                private static QuestionAggregate fromItem(QuestionnaireItem item) {
+                        String text = item.getQuestionText() == null ? "(untitled question)" : item.getQuestionText();
+                        QuestionnaireItem.QuestionType type = item.getQuestionType() == null
+                                        ? QuestionnaireItem.QuestionType.TEXT
+                                        : item.getQuestionType();
+                        return new QuestionAggregate(text.trim(), type, item.getMinScore(), item.getMaxScore());
+                }
+
+                private void addScore(EvaluationScore score) {
+                        if (score == null) {
+                                return;
+                        }
+
+                        if (score.getNumericScore() != null) {
+                                double value = score.getNumericScore();
+                                numericCount++;
+                                numericSum += value;
+                                numericMin = numericMin == null ? value : Math.min(numericMin, value);
+                                numericMax = numericMax == null ? value : Math.max(numericMax, value);
+                        }
+
+                        String response = score.getTextResponse();
+                        if (response != null) {
+                                String trimmed = response.trim();
+                                if (!trimmed.isBlank()) {
+                                        textResponseCount++;
+                                        if (sampleTextResponses.size() < MAX_SAMPLE_TEXT_PER_ITEM
+                                                        && seenTextSamples.add(trimmed)) {
+                                                sampleTextResponses.add(trimmed);
+                                        }
+                                }
+                        }
+                }
+
+                private String toSummaryLine() {
+                        StringBuilder line = new StringBuilder();
+                        line.append("  - Q: ").append(questionText)
+                                        .append(" [").append(questionType.name()).append("]");
+
+                        if (numericCount > 0) {
+                                double average = numericSum / numericCount;
+                                line.append(" | numericResponses=").append(numericCount)
+                                                .append(" avg=")
+                                                .append(String.format(Locale.US, "%.2f", average))
+                                                .append(" min=")
+                                                .append(String.format(Locale.US, "%.2f", numericMin == null ? 0.0 : numericMin))
+                                                .append(" max=")
+                                                .append(String.format(Locale.US, "%.2f", numericMax == null ? 0.0 : numericMax));
+
+                                if (minScore != null || maxScore != null) {
+                                        line.append(" scale=")
+                                                        .append(minScore == null ? "?" : minScore)
+                                                        .append("-")
+                                                        .append(maxScore == null ? "?" : maxScore);
+                                }
+                        } else {
+                                line.append(" | numericResponses=0");
+                        }
+
+                        line.append(" | textResponses=").append(textResponseCount);
+                        return line.toString();
+                }
         }
 }
