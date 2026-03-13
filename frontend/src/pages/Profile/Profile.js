@@ -226,9 +226,7 @@ const Profile = () => {
                 <button className="btn-link-google" onClick={startGoogleLink} disabled={googleStatus.loading}>
                   Link Google Account
                 </button>
-              ) : (
-                <p className="info-text">Google account unlinking is disabled.</p>
-              )}
+              ) : null}
             </div>
           </div>
         )}
