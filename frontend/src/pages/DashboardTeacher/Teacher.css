@@ -494,6 +494,46 @@
     box-shadow: 0 4px 16px rgba(138, 21, 31, 0.3);
   }
 
+  .ai-chat-typing .ai-chat-bubble {
+    min-width: 88px;
+  }
+
+  .ai-typing-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 18px;
+  }
+
+  .ai-typing-dots span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(242, 201, 76, 0.95);
+    animation: aiTypingPulse 1.2s infinite ease-in-out;
+  }
+
+  .ai-typing-dots span:nth-child(2) {
+    animation-delay: 0.18s;
+  }
+
+  .ai-typing-dots span:nth-child(3) {
+    animation-delay: 0.36s;
+  }
+
+  @keyframes aiTypingPulse {
+    0%,
+    80%,
+    100% {
+      opacity: 0.25;
+      transform: translateY(0);
+    }
+    40% {
+      opacity: 1;
+      transform: translateY(-2px);
+    }
+  }
+
   /* Team Management Styles */
   .team-section {
     margin: 20px 0;

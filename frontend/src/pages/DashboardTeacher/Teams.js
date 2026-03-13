@@ -314,8 +314,14 @@ const Teams = () => {
 
       {/* Create Team Modal */}
       {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="modal-overlay teacher-modal-overlay"
+          onClick={() => setShowCreateModal(false)}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2>Create New Team</h2>
             <form onSubmit={handleCreateTeam}>
               <div className="form-group">
@@ -369,8 +375,14 @@ const Teams = () => {
 
       {/* Manage Team Modal */}
       {showManageModal && selectedTeam && (
-        <div className="modal-overlay" onClick={() => setShowManageModal(false)}>
-          <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="modal-overlay teacher-modal-overlay"
+          onClick={() => setShowManageModal(false)}
+        >
+          <div
+            className="modal-content modal-large"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2>Manage Team: {selectedTeam.name}</h2>
             
             <div className="form-group">
