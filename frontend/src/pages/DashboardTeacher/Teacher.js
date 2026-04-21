@@ -1,22 +1,28 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import SummaryCard from "../../components/Cards/SummaryCard";
+import PendingEvaluationsModal from "../../components/Modal/PendingEvaluationsModal";
 import { classAPI, studentAPI, teamAPI, questionnaireAPI, teacherReportAPI } from "../../services/api";
 import "./Teacher.css";
 
 const Teacher = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [classes, setClasses] = useState([]);
   const [students, setStudents] = useState([]);
   const [teams, setTeams] = useState([]);
   const [questionnaires, setQuestionnaires] = useState([]);
-  const [pendingEvaluationsCount, setPendingEvaluationsCount] = useState(0);
+  const [classSearch, setClassSearch] = useState("");
   const [showTeamsModal, setShowTeamsModal] = useState(false);
   const [selectedClass, setSelectedClass] = useState(null);
   const [showTeamMembersModal, setShowTeamMembersModal] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState(null);
+  const [pendingEvaluations, setPendingEvaluations] = useState([]);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [showPendingModal, setShowPendingModal] = useState(false);
 
   const currentUser = useMemo(() => {
     const raw = localStorage.getItem("user");
@@ -56,7 +62,6 @@ const Teacher = () => {
 
         // Load questionnaires for all teacher's classes
         const questionnairesMap = {};
-        let totalPending = 0;
         for (const classItem of teacherClasses) {
           try {
             const classQuestionnaires = await questionnaireAPI.getQuestionnairesByClassForTeacher(classItem.id);
@@ -66,21 +71,21 @@ const Teacher = () => {
           }
         }
 
-        try {
-          const allQuestionnaires = await teacherReportAPI.getQuestionnaires();
-          for (const q of allQuestionnaires) {
-            try {
-              const evals = await teacherReportAPI.getQuestionnaireEvaluations(q.id);
-              totalPending += (evals || []).filter(e => e.status === 'IN_PROGRESS').length;
-            } catch (_) {}
-          }
-        } catch (_) {}
-
         setClasses(teacherClasses);
         setStudents(teacherStudents);
         setTeams(teacherTeams);
         setQuestionnaires(questionnairesMap);
-        setPendingEvaluationsCount(totalPending);
+
+        // Load pending evaluations
+        try {
+          const pendingData = await teacherReportAPI.getPendingEvaluations();
+          setPendingEvaluations(pendingData.pending || []);
+          setPendingCount(pendingData.total || 0);
+        } catch (err) {
+          console.error("Error fetching pending evaluations:", err);
+          setPendingCount(0);
+          setPendingEvaluations([]);
+        }
       } catch (e) {
         setError(e?.message || "Failed to load dashboard data");
       } finally {
@@ -117,6 +122,20 @@ const Teacher = () => {
     return questionnaires[classId] || [];
   };
 
+  const filteredClasses = useMemo(() => {
+    const normalizedSearch = classSearch.trim().toLowerCase();
+
+    return classes.filter((c) => {
+      const classText = `${c.name || ""} ${c.section || ""}`.toLowerCase();
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return classText.includes(normalizedSearch);
+    });
+  }, [classes, classSearch]);
+
   const getStudentsForTeam = (team) => {
     if (!team || !team.memberIds || team.memberIds.length === 0) return [];
     // Convert memberIds to strings for comparison since IDs can be stored as different types
@@ -129,35 +148,56 @@ const Teacher = () => {
     setShowTeamMembersModal(true);
   };
 
+  const teacherName = [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(" ") || "Teacher";
+
   return (
     <div className="teacher-container">
       <TeacherSidebar />
 
       <div className="teacher-content">
 
-        <h1>Teacher Dashboard</h1>
+        <h1 className="teacher-page-title">Teacher Dashboard</h1>
+
+        <section className="teacher-hero">
+          <div>
+            <p className="teacher-hero-kicker">Academic Control Center</p>
+            <h2 className="teacher-hero-title">Welcome, {teacherName}</h2>
+            <p className="teacher-hero-text">
+              Track class setup, manage team readiness, and monitor questionnaire coverage from one focused view.
+            </p>
+          </div>
+          <div className="teacher-hero-actions">
+          </div>
+        </section>
 
         <div className="summary-row">
-          <SummaryCard title="Total Classes" value={loading ? "-" : String(classes.length)} icon="🏫" />
-          <SummaryCard title="Total Students" value={loading ? "-" : String(students.length)} icon="👥" />
-          <SummaryCard title="Total Teams" value={loading ? "-" : String(teams.length)} icon="🤝" />
-          <SummaryCard title="Pending Evaluations" value={loading ? "-" : String(pendingEvaluationsCount)} icon="📋" />
+          <SummaryCard title="Total Classes" value={loading ? "-" : String(classes.length)} />
+          <SummaryCard title="Total Students" value={loading ? "-" : String(students.length)} />
+          <SummaryCard title="Total Teams" value={loading ? "-" : String(teams.length)} />
+          <div className="summary-card-wrapper" onClick={() => setShowPendingModal(true)}>
+            <SummaryCard title="Pending Evaluations" value={loading ? "-" : String(pendingCount)} />
+          </div>
         </div>
 
         {error && <div className="error-message">{error}</div>}
 
         <div className="section">
-          <h2>Your Classes</h2>
+          <div className="classes-header">
+            <h2>Your Classes</h2>
+          </div>
 
           {loading ? (
             <p>Loading...</p>
           ) : classes.length === 0 ? (
             <p>No classes found.</p>
+          ) : filteredClasses.length === 0 ? (
+            <p>No classes matched your current filter.</p>
           ) : (
 
           <table className="class-table">
             <thead>
               <tr>
+                <th>#</th>
                 <th>Class</th>
                 <th>Section</th>
                 <th>School Year</th>
@@ -169,35 +209,36 @@ const Teacher = () => {
             </thead>
 
             <tbody>
-              {classes.map((c) => (
+              {filteredClasses.map((c, index) => {
+                const questionnaireCount = getQuestionnairesForClass(c.id).length;
+                const hasQuestionnaire = questionnaireCount > 0;
+
+                return (
                 <tr key={c.id}>
+                  <td>{index + 1}</td>
                   <td>{c.name}</td>
                   <td>{c.section || "N/A"}</td>
                   <td>{c.schoolYear}</td>
                   <td>{getStudentsForClass(c.id).length} Students</td>
                   <td>{teamsByClassId.get(c.id) || 0} Teams</td>
-                  <td>
-                    {getQuestionnairesForClass(c.id).length === 0 ? (
-                      <span style={{ color: 'var(--dtm-muted)', fontStyle: 'italic' }}>
-                        0 Questionnaires
+                  <td className="table-chip-cell">
+                    {hasQuestionnaire ? (
+                      <span className="questionnaire-count-badge is-available">
+                        {questionnaireCount} {questionnaireCount === 1 ? "assigned" : "assigned"}
                       </span>
                     ) : (
-                      <span style={{
-                        color: '#4cd97b', fontWeight: 700,
-                        background: 'rgba(39,174,96,0.12)', padding: '2px 10px',
-                        borderRadius: 999, fontSize: 12,
-                      }}>
-                        {getQuestionnairesForClass(c.id).length} {getQuestionnairesForClass(c.id).length === 1 ? 'Questionnaire' : 'Questionnaires'}
+                      <span className="questionnaire-count-badge is-zero">
+                        0 assigned
                       </span>
                     )}
                   </td>
-                  <td>
+                  <td className="table-action-cell">
                     <button className="btn" onClick={() => handleManageClass(c)}>
-                      Manage
+                      Manage Class
                     </button>
                   </td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
 
@@ -246,7 +287,10 @@ const Teacher = () => {
                         <td>{team.memberIds?.length || 0}</td>
                         <td>{team.adviserIds?.length || 0}</td>
                         <td>
-                          <span className={team.isActive ? 'status-active status-badge' : 'status-inactive status-badge'}>
+                          <span style={{ 
+                            color: team.isActive ? '#28a745' : '#6c757d',
+                            fontWeight: 'bold'
+                          }}>
                             {team.isActive ? 'Active' : 'Inactive'}
                           </span>
                         </td>
@@ -321,15 +365,15 @@ const Teacher = () => {
 
             <div className="team-section" style={{ marginTop: "24px" }}>
               {getStudentsForTeam(selectedTeam).length === 0 ? (
-                <div style={{ padding: "20px", textAlign: "center", color: "var(--dtm-muted)" }}>
+                <div style={{ padding: "20px", textAlign: "center", color: "#6c757d" }}>
                   <p>No students assigned to this team yet.</p>
                 </div>
               ) : (
                 <div style={{
                   maxHeight: "400px",
                   overflowY: "auto",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: 10,
+                  border: "1px solid #e0e0e0",
+                  borderRadius: "4px"
                 }}>
                   <table className="class-table">
                     <thead>
@@ -362,7 +406,17 @@ const Teacher = () => {
             </div>
           </div>
         </div>
-      ), document.body)}    </div>
+      ), document.body)}
+
+      {createPortal(
+        <PendingEvaluationsModal 
+          isOpen={showPendingModal} 
+          onClose={() => setShowPendingModal(false)} 
+          pendingEvaluations={pendingEvaluations}
+        />,
+        document.body
+      )}
+    </div>
   );
 };
 

@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import AdviserSidebar from "../../components/Sidebar/AdviserSidebar";
 import { adviserAPI } from "../../services/api";
@@ -302,7 +302,7 @@ const EvaluateForm = () => {
         <div className="form-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
           {hasSections && currentSectionIndex > 0 && (
             <button className="btn-secondary" onClick={handlePrevious}>
-              ΓåÉ Previous Section
+              ← Previous Section
             </button>
           )}
 
@@ -316,7 +316,7 @@ const EvaluateForm = () => {
                 cursor: isCurrentSectionComplete() ? 'pointer' : 'not-allowed'
               }}
             >
-              Next Section ΓåÆ
+              Next Section →
             </button>
           )}
 

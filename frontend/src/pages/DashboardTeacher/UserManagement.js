@@ -4,7 +4,6 @@ import { userManagementAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import TeacherSidebar from '../../components/Sidebar/TeacherSidebar';
 import SummaryCard from '../../components/Cards/SummaryCard';
-import ConfirmModal from '../../components/ConfirmModal/ConfirmModal';
 import './Teacher.css';
 
 function UserManagement() {
@@ -19,7 +18,6 @@ function UserManagement() {
   const [importType, setImportType] = useState('STUDENT'); // 'STUDENT' or 'ADVISER'
   const [showExportModal, setShowExportModal] = useState(false);
   const [filterRole, setFilterRole] = useState('ALL');
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
 
   useEffect(() => {
     fetchUsers();
@@ -37,22 +35,15 @@ function UserManagement() {
     }
   };
 
-  const handleDelete = (id, email) => {
-    setConfirmModal({
-      isOpen: true,
-      title: 'Remove User',
-      message: `Remove ${email} from the system? This action cannot be undone.`,
-      onConfirm: async () => {
-        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        try {
-          await userManagementAPI.deleteUser(id);
-          toast.success(`${email} removed`);
-          fetchUsers();
-        } catch (err) {
-          toast.error('Failed to remove: ' + err.message);
-        }
-      },
-    });
+  const handleDelete = async (id, email) => {
+    if (!window.confirm(`Remove ${email} from the system?`)) return;
+    try {
+      await userManagementAPI.deleteUser(id);
+      toast.success(`${email} removed`);
+      fetchUsers();
+    } catch (err) {
+      toast.error('Failed to remove: ' + err.message);
+    }
   };
 
   const handleImport = async (e) => {
@@ -155,10 +146,10 @@ function UserManagement() {
 
         {/* Summary Cards */}
         <div className="summary-row">
-          <SummaryCard title="Total Users" value={loading ? '-' : String(counts.total)} icon="👥" />
-          <SummaryCard title="Teachers" value={loading ? '-' : String(counts.teacher)} icon="🏫" />
-          <SummaryCard title="Advisers" value={loading ? '-' : String(counts.adviser)} icon="📄" />
-          <SummaryCard title="Students" value={loading ? '-' : String(counts.student)} icon="🎓" />
+          <SummaryCard title="Total Users" value={loading ? '-' : String(counts.total)} />
+          <SummaryCard title="Teachers" value={loading ? '-' : String(counts.teacher)} />
+          <SummaryCard title="Advisers" value={loading ? '-' : String(counts.adviser)} />
+          <SummaryCard title="Students" value={loading ? '-' : String(counts.student)} />
         </div>
 
         <div className="section">
@@ -205,7 +196,7 @@ function UserManagement() {
           {loading ? (
             <p>Loading users...</p>
           ) : filtered.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px', color: 'var(--dtm-muted)' }}>
+            <div style={{ textAlign: 'center', padding: '32px', color: '#666' }}>
               <p>No users found. Upload student or adviser sheets to get started.</p>
             </div>
           ) : (
@@ -231,21 +222,8 @@ function UserManagement() {
                         borderRadius: '12px',
                         fontSize: '11px',
                         fontWeight: '700',
-                        background: u.role === 'TEACHER'
-                          ? 'rgba(39,174,96,0.15)'
-                          : u.role === 'ADVISER'
-                          ? 'rgba(74,144,226,0.15)'
-                          : 'rgba(242,201,76,0.12)',
-                        color: u.role === 'TEACHER'
-                          ? '#4cd97b'
-                          : u.role === 'ADVISER'
-                          ? '#74b0f4'
-                          : 'var(--dtm-gold)',
-                        border: u.role === 'TEACHER'
-                          ? '1px solid rgba(39,174,96,0.3)'
-                          : u.role === 'ADVISER'
-                          ? '1px solid rgba(74,144,226,0.3)'
-                          : '1px solid rgba(242,201,76,0.25)',
+                        background: u.role === 'TEACHER' ? '#d4edda' : u.role === 'ADVISER' ? '#cce5ff' : '#fff3cd',
+                        color: u.role === 'TEACHER' ? '#155724' : u.role === 'ADVISER' ? '#004085' : '#856404',
                       }}>
                         {u.role}
                       </span>
@@ -253,7 +231,8 @@ function UserManagement() {
                     <td>
                       {u.email !== 'authortet@gmail.com' && (
                         <button
-                          className="btn btn-danger btn-sm"
+                          className="btn-secondary"
+                          style={{ padding: '5px 12px', fontSize: '12px', color: '#dc3545', borderColor: '#dc3545' }}
                           onClick={() => handleDelete(u.id, u.email)}
                         >
                           Remove
@@ -293,7 +272,7 @@ function UserManagement() {
             </div>
 
             {uploadError && <div className="error-message">{uploadError}</div>}
-            <p style={{ fontSize: '13px', color: 'var(--dtm-muted)', marginBottom: '12px' }}>
+            <p style={{ fontSize: '13px', color: '#555', marginBottom: '12px' }}>
               Upload an Excel (.xlsx / .xls) or CSV file. First row must be the header; columns are matched by header name and do not need to be in a fixed order:
             </p>
 
@@ -308,7 +287,7 @@ function UserManagement() {
                     <tr><td>2B</td><td>T001</td><td>2</td><td>202302</td><td>Smith</td><td>Jane</td><td>jane.smith@cit.edu</td><td>adviser.one@cit.edu</td></tr>
                   </tbody>
                 </table>
-                <p style={{ fontSize: '12px', color: 'var(--dtm-muted)', marginBottom: '16px' }}>
+                <p style={{ fontSize: '12px', color: '#888', marginBottom: '16px' }}>
                   Required: <strong>CLASS, TEAMCODE, MEMBER#, STUDENTID, LASTNAME, FIRSTNAME, EMAIL, ADVISOREMAIL</strong>
                 </p>
               </>
@@ -323,7 +302,7 @@ function UserManagement() {
                     <tr><td>Williams</td><td>Sarah</td><td>sarah.williams@cit.edu</td></tr>
                   </tbody>
                 </table>
-                <p style={{ fontSize: '12px', color: 'var(--dtm-muted)', marginBottom: '16px' }}>
+                <p style={{ fontSize: '12px', color: '#888', marginBottom: '16px' }}>
                   Required: <strong>LASTNAME, FIRSTNAME, EMAIL</strong>
                 </p>
               </>
@@ -339,7 +318,7 @@ function UserManagement() {
                   required
                 />
                 {uploadFile && (
-                  <p style={{ fontSize: '12px', color: '#4cd97b', marginTop: '6px' }}>
+                  <p style={{ fontSize: '12px', color: '#28a745', marginTop: '6px' }}>
                     Selected: {uploadFile.name}
                   </p>
                 )}
@@ -347,7 +326,7 @@ function UserManagement() {
               <div className="modal-actions">
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn-secondary"
                   onClick={() => { setShowImportModal(false); setUploadFile(null); setUploadError(''); }}
                   disabled={uploading}
                 >
@@ -367,7 +346,7 @@ function UserManagement() {
         <div className="modal-overlay" onClick={() => setShowExportModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Export Data</h2>
-            <p style={{ fontSize: '13px', color: 'var(--dtm-muted)', marginBottom: '24px' }}>
+            <p style={{ fontSize: '13px', color: '#555', marginBottom: '24px' }}>
               Choose what you'd like to export:
             </p>
 
@@ -431,8 +410,9 @@ function UserManagement() {
 
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <button
-                className="btn btn-secondary"
+                className="btn-secondary"
                 onClick={() => setShowExportModal(false)}
+                style={{ padding: '10px 20px' }}
               >
                 Cancel
               </button>
@@ -440,14 +420,6 @@ function UserManagement() {
           </div>
         </div>
       ), document.body)}
-      <ConfirmModal
-        isOpen={confirmModal.isOpen}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        onConfirm={confirmModal.onConfirm}
-        onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
-        isDanger={true}
-      />
     </div>
   );
 }

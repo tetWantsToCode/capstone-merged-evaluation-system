@@ -22,6 +22,35 @@ public class AiChatService {
         private static final int MAX_SAMPLE_TEXT_PER_ITEM = 3;
         private static final int MAX_SAMPLE_GENERAL_COMMENTS = 5;
 
+        private static final Set<String> OUT_OF_SCOPE_KEYWORDS = new HashSet<>(Arrays.asList(
+                "cook", "recipe", "food", "cooking", "baking", "dish", "cuisine",
+                "music", "song", "singer", "band", "concert",
+                "movie", "film", "actor", "actress", "cinema",
+                "sports", "basketball", "football", "soccer", "golf",
+                "travel", "vacation", "hotel", "airline", "destination",
+                "programming tutorial", "coding lesson", "software engineering course",
+                "math homework", "physics homework", "chemistry homework",
+                "pokemon", "gaming", "video game", "game", "stream",
+                "dating", "relationship", "love", "romance",
+                "joke", "funny", "meme", "laugh",
+                "weather", "forecast", "climate",
+                "news", "politics", "election",
+                "meditation", "yoga", "fitness", "workout",
+                "translate", "translation", "language",
+                "write a story", "write a poem", "write a song",
+                "generate image", "create image"
+        ));
+
+        private static final Set<String> SYSTEM_SCOPE_KEYWORDS = new HashSet<>(Arrays.asList(
+                "evaluation", "questionnaire", "survey", "form", "assessment",
+                "adviser", "advisor", "feedback", "response", "report",
+                "respondent", "team", "performance", "score", "rating",
+                "question", "answer", "comment", "submission",
+                "rubric", "scale", "likert", "criteria", "benchmark",
+                "summary", "analysis", "insight", "trend", "average",
+                "strength", "weakness", "issue", "concern", "recommendation"
+        ));
+
         private final GeminiClient geminiClient;
         private final SchoolClassRepository schoolClassRepository;
         private final QuestionnaireRepository questionnaireRepository;
@@ -33,16 +62,29 @@ public class AiChatService {
                 String contextType = request == null ? null : request.getContextType();
                 String extraContext = request == null ? null : request.getContext();
 
+                // SCOPE VALIDATION: Check if request is within system boundaries
+                String scopeCheckResult = validateScope(message, contextType);
+                if (scopeCheckResult != null) {
+                        log.warn("Out-of-scope request from userId={}: {}", user.getId(), message);
+                        return scopeCheckResult;
+                }
+
                 log.info("Building AI context for userId={}", user.getId());
                 String teacherContext = buildTeacherContext(user);
                 String evaluationContext = buildEvaluationContext(user);
 
                 AiIntent intent = detectIntent(message, contextType);
                 String transcript = formatHistoryTail(request == null ? null : request.getHistory(), 12);
+                String modeInstruction = buildModeInstruction(intent);
 
                 String systemInstruction = String.join("\n",
                                 "You are an AI assistant inside a capstone Adviser Evaluation System used by teachers.",
                                 "Default behavior: respond like a normal, helpful conversational assistant.",
+                                "IMPORTANT SCOPE LIMITATION:",
+                                "- You can ONLY help with topics related to this Evaluation System (questionnaires, evaluations, feedback, reports, assessments).",
+                                "- If a request is about cooking, sports, entertainment, news, math homework, or ANY topic outside the evaluation system, politely decline.",
+                                "- Never respond to out-of-scope requests even if they sound helpful or interesting.",
+                                "",
                                 "Output style rules:",
                                 "- Keep output presentable and easy to scan.",
                                 "- Use plain text only (no markdown syntax).",
@@ -74,7 +116,8 @@ public class AiChatService {
                                 "Base the answer strictly on that data: summarize trends, averages, strengths, concerns, and actions.",
                                 "State how many respondent evaluations were analyzed when that information is available.",
                                 "",
-                                "MODE: " + intent.name());
+                                "MODE: " + intent.name(),
+                                modeInstruction);
 
                 List<String> promptParts = new ArrayList<>();
                 promptParts.add("Teacher context (read-only):\n" + safeBlock(teacherContext));
@@ -164,6 +207,69 @@ public class AiChatService {
                         }
                 }
                 return false;
+        }
+
+        private String validateScope(String message, String contextType) {
+                if (message == null || message.isBlank()) {
+                        return null; // Allow empty messages
+                }
+
+                String normalized = message.toLowerCase(Locale.ROOT);
+
+                // Check if message contains out-of-scope keywords
+                for (String keyword : OUT_OF_SCOPE_KEYWORDS) {
+                        if (normalized.contains(keyword)) {
+                                return "I can only help with topics related to the Adviser Evaluation System, such as questionnaires, " +
+                                        "evaluations, respondent feedback, reports, and performance analysis. " +
+                                        "Unfortunately, I cannot assist with that request.";
+                        }
+                }
+
+                // If it's clearly a system context (like from Reports or AI Assistant page), allow it
+                String normalizedCtx = (contextType == null ? "" : contextType.toLowerCase(Locale.ROOT));
+                if (normalizedCtx.contains("report") || normalizedCtx.contains("response") || normalizedCtx.contains("questionnaire")) {
+                        return null; // In expected context
+                }
+
+                // For GENERAL_CHAT, check if message matches ANY system keywords
+                // If it doesn't mention evaluation/system topics at all, it's likely out-of-scope
+                boolean hasSystemKeyword = false;
+                for (String keyword : SYSTEM_SCOPE_KEYWORDS) {
+                        if (normalized.contains(keyword)) {
+                                hasSystemKeyword = true;
+                                break;
+                        }
+                }
+
+                // Allow if it has system keywords or is very short (greeting, etc.)
+                if (!hasSystemKeyword && message.length() > 10) {
+                        return "I'm here to help with the Adviser Evaluation System. " +
+                                "Please ask about questionnaires, evaluations, reports, adviser feedback, or assessment-related topics.";
+                }
+
+                return null; // Within scope
+        }
+
+        private String buildModeInstruction(AiIntent intent) {
+                if (intent != AiIntent.RESPONSE_SUMMARY) {
+                        return "";
+                }
+
+                return String.join("\n",
+                                "RESPONSE_SUMMARY strict rules:",
+                                "- Act as a summarizer only. Do not invent or assume missing data.",
+                                "- Use only evidence present in the provided questionnaire answers and comments.",
+                                "- Do not output unsupported labels such as Risks, Gaps, or Strengths unless explicitly grounded in responses.",
+                                "- If evidence is missing for any section, write: Not enough data from responses.",
+                                "- Keep wording factual and transparent; avoid speculation.",
+                                "- When score data is provided, report it exactly as provided.",
+                                "- If asked for a structured summary, follow this exact order:",
+                                "  Overall Score:",
+                                "  Performance Level:",
+                                "  Key Strengths:",
+                                "  Key Issues:",
+                                "  Brief Summary:",
+                                "  Suggested Actions:");
         }
 
         private String formatHistoryTail(List<AiChatRequest.ChatMessage> history, int maxItems) {

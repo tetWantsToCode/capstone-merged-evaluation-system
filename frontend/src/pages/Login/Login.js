@@ -6,7 +6,7 @@ import BlurText from '../../components/BlurText/BlurText';
 import '../../components/Aurora/Aurora.css';
 import './Login.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = 'http://localhost:8080';
 
 function Login() {
   const navigate = useNavigate();

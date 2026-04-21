@@ -63,13 +63,12 @@ const Students = () => {
                   <th>Last Name</th>
                   <th>Class</th>
                   <th>Email</th>
-                  <th>Phone Number</th>
                 </tr>
               </thead>
               <tbody>
                 {students.length === 0 ? (
                   <tr>
-                    <td colSpan="6" style={{ textAlign: 'center' }}>No students found</td>
+                    <td colSpan="5" style={{ textAlign: 'center' }}>No students found</td>
                   </tr>
                 ) : (
                   students.map((student) => (
@@ -87,7 +86,6 @@ const Students = () => {
                         }
                       </td>
                       <td>{student.email || 'N/A'}</td>
-                      <td>{student.phoneNumber || 'N/A'}</td>
                     </tr>
                   ))
                 )}

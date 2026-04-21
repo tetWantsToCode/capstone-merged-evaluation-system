@@ -408,10 +408,24 @@ public class QuestionnaireService {
             throw new RuntimeException("You can only update your own questionnaires");
         }
 
+        if (isActive == null) {
+            throw new RuntimeException("isActive is required");
+        }
+
         questionnaire.setIsActive(isActive);
+
+        // Re-activating should reopen questionnaire usage for advisers.
+        if (Boolean.TRUE.equals(isActive)) {
+            questionnaire.setIsLocked(false);
+            questionnaire.setLockedAt(null);
+        }
+
         Questionnaire saved = questionnaireRepository.save(questionnaire);
 
-        log.info("Updated questionnaire {} status to {}", questionnaireId, isActive);
+        log.info("Updated questionnaire {} status to {} (isLocked={})",
+                questionnaireId,
+                isActive,
+                saved.getIsLocked());
         return saved;
     }
 }

@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { authAPI } from "../../services/api";
 import "./Sidebar.css";
 
 const TeacherSidebar = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [user, setUser] = useState(null);
-  const [forceOpen, setForceOpen] = useState(() => sessionStorage.getItem('sidebarForceOpen') === '1');
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -27,24 +27,12 @@ const TeacherSidebar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (!forceOpen) return;
-
-    const timer = setTimeout(() => {
-      sessionStorage.removeItem('sidebarForceOpen');
-      setForceOpen(false);
-    }, 450);
-
-    return () => clearTimeout(timer);
-  }, [forceOpen]);
-
   const handleLogout = () => {
     authAPI.logout();
     navigate('/login');
   };
 
   const handleNavigate = (path) => {
-    sessionStorage.setItem('sidebarForceOpen', '1');
     navigate(path);
   };
 
@@ -55,19 +43,29 @@ const TeacherSidebar = () => {
     return (f + l).toUpperCase() || user.email?.[0]?.toUpperCase() || '?';
   };
 
+  const menuItems = [
+    { label: "Dashboard", icon: "⌂", path: "/teacher/dashboard" },
+    { label: "Students", icon: "◉", path: "/teacher/students" },
+    { label: "Advisers", icon: "◎", path: "/teacher/advisers" },
+    { label: "Questionnaires", icon: "▣", path: "/teacher/questionnaires" },
+    { label: "Reports", icon: "◫", path: "/teacher/reports" },
+    { label: "User Management", icon: "⚙", path: "/teacher/user-management" },
+  ];
+
   return (
-    <div className={`sidebar${forceOpen ? ' sidebar-force-open' : ''}`}>
+    <div className="sidebar sidebar--teacher">
       <h2>Teacher Panel</h2>
       <ul>
-        <li onClick={() => handleNavigate('/teacher/dashboard')}>Dashboard</li>
-        <li onClick={() => handleNavigate('/teacher/classes')}>Classes</li>
-        <li onClick={() => handleNavigate('/teacher/teams')}>Teams</li>
-        <li onClick={() => handleNavigate('/teacher/student-management')}>Students</li>
-        <li onClick={() => handleNavigate('/teacher/advisers')}>Advisers</li>
-        <li onClick={() => handleNavigate('/teacher/questionnaires')}>Questionnaires</li>
-        <li onClick={() => handleNavigate('/teacher/peer-evaluations')}>Peer Evaluations</li>
-        <li onClick={() => handleNavigate('/teacher/reports')}>Reports</li>
-        <li onClick={() => handleNavigate('/teacher/user-management')}>User Management</li>
+        {menuItems.map((item) => (
+          <li
+            key={item.path}
+            className={location.pathname.startsWith(item.path) ? "is-active" : ""}
+            onClick={() => handleNavigate(item.path)}
+          >
+            <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+            <span>{item.label}</span>
+          </li>
+        ))}
       </ul>
 
       <div className="sidebar-profile" ref={menuRef}>

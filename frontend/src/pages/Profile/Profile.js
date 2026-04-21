@@ -1,17 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { authAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import TeacherSidebar from '../../components/Sidebar/TeacherSidebar';
 import AdviserSidebar from '../../components/Sidebar/AdviserSidebar';
-import StudentSidebar from '../../components/Sidebar/StudentSidebar';
 import './Profile.css';
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/api').replace(/\/api\/?$/, '');
 
 const Profile = () => {
   const toast = useToast();
-  const [searchParams] = useSearchParams();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -24,11 +21,6 @@ const Profile = () => {
 
   useEffect(() => {
     fetchUserProfile();
-    const errorParam = searchParams.get('error');
-    if (errorParam === 'google_link_failed') {
-      toast.error('Failed to link Google account. Please try again.');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -131,12 +123,6 @@ const Profile = () => {
 
       const onMessage = async (event) => {
         if (event.origin !== window.location.origin) return;
-        if (event.data?.type === 'GOOGLE_OAUTH_ERROR') {
-          window.removeEventListener('message', onMessage);
-          toast.error(event.data.error || 'Failed to link Google account');
-          setGoogleStatus((prev) => ({ ...prev, loading: false }));
-          return;
-        }
         if (event.data?.type !== 'GOOGLE_OAUTH_CODE') return;
 
         window.removeEventListener('message', onMessage);
@@ -177,7 +163,7 @@ const Profile = () => {
 
   return (
     <div className="profile-container">
-      {user?.role === 'TEACHER' ? <TeacherSidebar /> : user?.role === 'STUDENT' ? <StudentSidebar /> : <AdviserSidebar />}
+      {user?.role === 'TEACHER' ? <TeacherSidebar /> : <AdviserSidebar />}
       
       <div className="profile-content">
         <div className="profile-header">

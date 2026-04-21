@@ -693,6 +693,19 @@ export const adviserAPI = {
     return await response.json();
   },
 
+  getTeamEvaluationStatuses: async (teamId) => {
+    const response = await fetch(`${API_BASE_URL}/adviser/teams/${teamId}/evaluation-statuses`, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
+
+    if (!response.ok) {
+      await throwApiError(response, 'Failed to fetch team evaluation statuses');
+    }
+
+    return await response.json();
+  },
+
   // Get or create evaluation
   getEvaluation: async (teamId, questionnaireId) => {
     const response = await fetch(
@@ -806,34 +819,20 @@ export const teacherReportAPI = {
     return await response.json();
   },
 
-  getRankings: async (questionnaireId) => {
+  getPendingEvaluations: async () => {
     const response = await fetch(
-      `${API_BASE_URL}/teacher/reports/questionnaire/${questionnaireId}/rankings`,
-      { method: 'GET', headers: getHeaders() }
+      `${API_BASE_URL}/teacher/reports/pending-evaluations`,
+      {
+        method: 'GET',
+        headers: getHeaders(),
+      }
     );
-    if (!response.ok) {
-      await throwApiError(response, 'Failed to fetch rankings');
-    }
-    return await response.json();
-  },
 
-  exportCsv: (questionnaireId) => {
-    const token = getAuthToken();
-    const url = `${API_BASE_URL}/teacher/reports/questionnaire/${questionnaireId}/export-csv`;
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `rankings-${questionnaireId}.csv`);
-    const headers = token ? `Bearer ${token}` : '';
-    fetch(url, { method: 'GET', headers: { Authorization: headers } })
-      .then(res => res.blob())
-      .then(blob => {
-        const blobUrl = URL.createObjectURL(blob);
-        link.href = blobUrl;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(blobUrl);
-      });
+    if (!response.ok) {
+      await throwApiError(response, 'Failed to fetch pending evaluations');
+    }
+
+    return await response.json();
   },
 };
 

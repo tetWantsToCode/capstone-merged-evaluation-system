@@ -267,11 +267,6 @@ public class QuestionnaireController {
         try {
             User user = getUserFromAuthentication(authentication);
 
-            if (user.getRole() != User.UserRole.TEACHER) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ErrorResponse("Only teachers can update questionnaire status"));
-            }
-
             Questionnaire questionnaire = questionnaireService.updateQuestionnaireStatus(
                     id,
                     request.getIsActive(),

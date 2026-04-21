@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { questionnaireAPI } from "../../services/api";
@@ -281,7 +281,7 @@ const CreateQuestionnaire = () => {
                   fontSize: '10px',
                   color: 'var(--dtm-text)'
                 }}>
-                  📄 {formData.sections.length} page(s) &bull; {formData.sections[activeSectionIndex].items.length} question(s)
+                  📄 {formData.sections.length} page(s) • {formData.sections[activeSectionIndex].items.length} question(s)
                 </div>
 
                 {/* Section Navigation */}
@@ -359,39 +359,6 @@ const CreateQuestionnaire = () => {
                 </div>
               </>
             )}
-
-            {/* New Section Form — always visible at bottom of left panel */}
-            <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px' }}>
-              <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: '600', color: 'var(--dtm-gold)' }}>
-                + New Section
-              </h4>
-              <div className="form-group" style={{ marginBottom: '6px' }}>
-                <input
-                  type="text"
-                  value={newSection.sectionTitle}
-                  onChange={(e) => setNewSection({ ...newSection, sectionTitle: e.target.value })}
-                  placeholder="Section title (e.g. Communication Skills)"
-                  style={{ fontSize: '11px', width: '100%', boxSizing: 'border-box' }}
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: '8px' }}>
-                <input
-                  type="text"
-                  value={newSection.sectionDescription}
-                  onChange={(e) => setNewSection({ ...newSection, sectionDescription: e.target.value })}
-                  placeholder="Description (optional)"
-                  style={{ fontSize: '11px', width: '100%', boxSizing: 'border-box' }}
-                />
-              </div>
-              <button
-                type="button"
-                className="btn btn-sm btn-assign"
-                onClick={handleCreateSection}
-                style={{ width: '100%', fontSize: '11px' }}
-              >
-                Add Section
-              </button>
-            </div>
           </div>
 
           {/* RIGHT COLUMN - CREATION FORM */}

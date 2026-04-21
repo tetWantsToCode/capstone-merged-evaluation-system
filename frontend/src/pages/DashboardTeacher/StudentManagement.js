@@ -322,7 +322,7 @@ const StudentManagement = () => {
                   <button type="submit" className="btn">
                     {editMode ? 'Update' : 'Add'} Student
                   </button>
-                  <button type="button" className="btn btn-secondary" onClick={handleCancel}>
+                  <button type="button" className="btn-secondary" onClick={handleCancel}>
                     Cancel
                   </button>
                 </div>
@@ -340,7 +340,7 @@ const StudentManagement = () => {
               <form onSubmit={handleImportSubmit}>
                 <div className="form-group">
                   <label>Select File (.xlsx, .xls, or .csv) *</label>
-                  <p style={{ fontSize: '0.9em', color: 'var(--dtm-muted)', marginBottom: '10px' }}>
+                  <p style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px' }}>
                     File should contain columns: Student ID, First Name, Last Name, Email (optional), Phone Number (optional)
                   </p>
                   <input
@@ -350,7 +350,7 @@ const StudentManagement = () => {
                     required
                   />
                   {importFile && (
-                    <p style={{ fontSize: '0.9em', color: '#4cd97b', marginTop: '10px' }}>
+                    <p style={{ fontSize: '0.9em', color: '#4CAF50', marginTop: '10px' }}>
                       Selected: {importFile.name}
                     </p>
                   )}
@@ -359,7 +359,7 @@ const StudentManagement = () => {
                   <button type="submit" className="btn" disabled={importLoading}>
                     {importLoading ? 'Importing...' : 'Import Students'}
                   </button>
-                  <button type="button" className="btn btn-secondary" onClick={handleImportCancel} disabled={importLoading}>
+                  <button type="button" className="btn-secondary" onClick={handleImportCancel} disabled={importLoading}>
                     Cancel
                   </button>
                 </div>

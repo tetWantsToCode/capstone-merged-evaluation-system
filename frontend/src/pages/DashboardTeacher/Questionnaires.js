@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { questionnaireAPI, classAPI } from "../../services/api";
@@ -170,7 +170,7 @@ const Questionnaires = () => {
 
         {!googleLinked && (
           <div className="alert-warning">
-            <strong>ΓÜá∩╕Å Google Account Not Linked</strong>
+            <strong>⚠️ Google Account Not Linked</strong>
             <p>Please link your Google account in the Profile page to create questionnaires.</p>
           </div>
         )}

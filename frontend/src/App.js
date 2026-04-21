@@ -1,4 +1,4 @@
-﻿import './App.css';
+import './App.css';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login/Login';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -13,20 +13,9 @@ import EvaluationDetail from './pages/DashboardTeacher/EvaluationDetail';
 import Students from './pages/DashboardTeacher/Students';
 import Advisers from './pages/DashboardTeacher/Advisers';
 import UserManagement from './pages/DashboardTeacher/UserManagement';
-import StudentManagement from './pages/DashboardTeacher/StudentManagement';
-import Classes from './pages/DashboardTeacher/Classes';
-import Teams from './pages/DashboardTeacher/Teams';
-import PeerEvaluations from './pages/DashboardTeacher/PeerEvaluations';
-import AiAssistant from './pages/DashboardTeacher/AiAssistant';
-
-// Student Pages
-import StudentDashboard from './pages/DashboardStudent/StudentDashboard';
-import StudentEvaluationForm from './pages/DashboardStudent/StudentEvaluationForm';
-import ThankYou from './pages/ThankYou';
 
 // Adviser Pages
 import Adviser from './pages/DashboardAdviser/Adviser';
-import AdviserEvaluations from './pages/DashboardAdviser/AdviserEvaluations';
 import Evaluations from './pages/DashboardAdviser/Evaluations';
 import Completed from './pages/DashboardAdviser/Completed';
 import EvaluateForm from './pages/DashboardAdviser/EvaluateForm';
@@ -94,46 +83,10 @@ function App() {
           </ProtectedRoute>
         } />
 
-        <Route path="/teacher/student-management" element={
-          <ProtectedRoute allowedRoles={['TEACHER']}>
-            <StudentManagement />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/teacher/classes" element={
-          <ProtectedRoute allowedRoles={['TEACHER']}>
-            <Classes />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/teacher/teams" element={
-          <ProtectedRoute allowedRoles={['TEACHER']}>
-            <Teams />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/teacher/peer-evaluations" element={
-          <ProtectedRoute allowedRoles={['TEACHER']}>
-            <PeerEvaluations />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/teacher/ai-assistant" element={
-          <ProtectedRoute allowedRoles={['TEACHER']}>
-            <AiAssistant />
-          </ProtectedRoute>
-        } />
-
         {/* Adviser */}
         <Route path="/adviser/dashboard" element={
           <ProtectedRoute allowedRoles={['ADVISER']}>
             <Adviser />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/adviser/evaluations-list" element={
-          <ProtectedRoute allowedRoles={['ADVISER']}>
-            <AdviserEvaluations />
           </ProtectedRoute>
         } />
 
@@ -155,24 +108,9 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* Student */}
-        <Route path="/student/dashboard" element={
-          <ProtectedRoute allowedRoles={['STUDENT']}>
-            <StudentDashboard />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/student/evaluation/:activityId" element={
-          <ProtectedRoute allowedRoles={['STUDENT']}>
-            <StudentEvaluationForm />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/thank-you" element={<ThankYou />} />
-
         {/* Profile */}
         <Route path="/profile" element={
-          <ProtectedRoute allowedRoles={['TEACHER', 'ADVISER', 'STUDENT']}>
+          <ProtectedRoute allowedRoles={['TEACHER', 'ADVISER']}>
             <Profile />
           </ProtectedRoute>
         } />

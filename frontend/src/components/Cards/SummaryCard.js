@@ -1,10 +1,9 @@
 import React from "react";
 import "./Cards.css";
 
-const SummaryCard = ({ title, value, icon }) => {
+const SummaryCard = ({ title, value }) => {
   return (
     <div className="summary-card">
-      {icon && <div className="summary-card-icon">{icon}</div>}
       <h3>{title}</h3>
       <p>{value}</p>
     </div>

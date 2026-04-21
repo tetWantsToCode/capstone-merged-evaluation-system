@@ -11,14 +11,11 @@ const GoogleCallback = () => {
 
     if (error) {
       console.error('OAuth error:', error);
+      alert('Failed to link Google account');
       if (window.opener) {
-        window.opener.postMessage({
-          type: 'GOOGLE_OAUTH_ERROR',
-          error: 'Failed to link Google account'
-        }, window.location.origin);
         window.close();
       } else {
-        navigate('/profile?error=google_link_failed');
+        navigate('/profile');
       }
       return;
     }
