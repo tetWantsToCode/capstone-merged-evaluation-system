@@ -1,0 +1,251 @@
+:root {
+  --dtm-maroon: #8a151f;
+  --dtm-maroon-dark: #6c0f17;
+  --dtm-gold: #f2c94c;
+  --dtm-bg: #1a0a0c;
+  --dtm-card: #3b252b;
+  --dtm-card-border: rgba(255, 255, 255, 0.12);
+  --dtm-border: rgba(255, 255, 255, 0.10);
+  --dtm-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --dtm-text: #f5f0eb;
+  --dtm-muted: #a09890;
+}
+
+.profile-container {
+  display: flex;
+  min-height: 100vh;
+  background: var(--dtm-bg);
+  color: var(--dtm-text);
+}
+
+.profile-content {
+  flex: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 40px 40px 40px;
+  margin-left: 280px;
+  width: calc(100% - 320px);
+}
+
+.profile-header {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.profile-header h1 {
+  font-size: 28px;
+  color: var(--dtm-gold);
+  margin: 0;
+  font-weight: 800;
+  text-shadow: 0 0 30px rgba(242, 201, 76, 0.2);
+}
+
+.profile-section {
+  background: var(--dtm-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 28px;
+  margin-bottom: 22px;
+  box-shadow: var(--dtm-shadow);
+  border: 1px solid var(--dtm-card-border);
+}
+
+.profile-section h2 {
+  font-size: 20px;
+  color: var(--dtm-gold);
+  margin: 0 0 16px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 700;
+}
+
+.section-description {
+  color: var(--dtm-muted);
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+}
+
+.info-row label {
+  font-weight: 700;
+  color: var(--dtm-muted);
+  min-width: 140px;
+  font-size: 14px;
+}
+
+.info-row span {
+  color: var(--dtm-text);
+  font-size: 14px;
+}
+
+/* Google Section Styles */
+.google-section {
+  border: 1px solid rgba(242, 201, 76, 0.15);
+}
+
+.google-link-status {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  width: fit-content;
+}
+
+.status-badge.linked {
+  background-color: rgba(74, 222, 128, 0.12);
+  color: #4ade80;
+}
+
+.status-badge.not-linked {
+  background-color: rgba(255, 123, 123, 0.12);
+  color: #ff7b7b;
+}
+
+.linked-email {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background-color: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+}
+
+.linked-email label {
+  font-weight: 600;
+  color: var(--dtm-muted);
+  font-size: 14px;
+}
+
+.linked-email span {
+  color: var(--dtm-text);
+  font-size: 14px;
+}
+
+.btn-link-google {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  color: var(--dtm-text);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  width: fit-content;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  min-height: 44px;
+}
+
+.btn-link-google:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08));
+  border-color: rgba(242, 201, 76, 0.3);
+  box-shadow: 0 6px 20px rgba(242, 201, 76, 0.1);
+  transform: translateY(-1px);
+}
+
+.btn-link-google:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-link-google:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+
+.info-text {
+  color: var(--dtm-muted);
+  font-size: 13px;
+  margin: 0;
+  font-style: italic;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .profile-content {
+    margin-left: 0;
+    padding: 24px 20px;
+    width: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .profile-container {
+    padding: 15px;
+  }
+
+  .profile-content {
+    margin-left: 0;
+    padding: 16px 14px;
+    width: auto;
+  }
+
+  .profile-section {
+    padding: 20px;
+  }
+
+  .info-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .info-row label {
+    min-width: unset;
+  }
+
+  .linked-email {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .btn-link-google {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-content {
+    padding: 12px 10px;
+  }
+
+  .profile-header h1 {
+    font-size: 22px;
+  }
+
+  .profile-section {
+    padding: 16px;
+  }
+
+  .btn-link-google {
+    padding: 12px 18px;
+    font-size: 13px;
+  }
+
+}
