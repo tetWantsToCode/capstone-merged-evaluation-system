@@ -14,11 +14,17 @@ import Students from './pages/DashboardTeacher/Students';
 import Advisers from './pages/DashboardTeacher/Advisers';
 import UserManagement from './pages/DashboardTeacher/UserManagement';
 
+// Student Pages
+import StudentDashboard from './pages/DashboardStudent/StudentDashboard';
+import StudentEvaluationForm from './pages/DashboardStudent/StudentEvaluationForm';
+import ThankYou from './pages/ThankYou';
+
 // Adviser Pages
 import Adviser from './pages/DashboardAdviser/Adviser';
 import Evaluations from './pages/DashboardAdviser/Evaluations';
 import Completed from './pages/DashboardAdviser/Completed';
 import EvaluateForm from './pages/DashboardAdviser/EvaluateForm';
+import AdviserEvaluations from './pages/DashboardAdviser/AdviserEvaluations';
 
 // Profile
 import Profile from './pages/Profile/Profile';
@@ -83,6 +89,25 @@ function App() {
           </ProtectedRoute>
         } />
 
+        {/* Student */}
+        <Route path="/student/dashboard" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <StudentDashboard />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/student/evaluate/:activityId" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <StudentEvaluationForm />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/thank-you" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <ThankYou />
+          </ProtectedRoute>
+        } />
+
         {/* Adviser */}
         <Route path="/adviser/dashboard" element={
           <ProtectedRoute allowedRoles={['ADVISER']}>
@@ -108,9 +133,15 @@ function App() {
           </ProtectedRoute>
         } />
 
+        <Route path="/adviser/evaluations-list" element={
+          <ProtectedRoute allowedRoles={['ADVISER']}>
+            <AdviserEvaluations />
+          </ProtectedRoute>
+        } />
+
         {/* Profile */}
         <Route path="/profile" element={
-          <ProtectedRoute allowedRoles={['TEACHER', 'ADVISER']}>
+          <ProtectedRoute allowedRoles={['TEACHER', 'ADVISER', 'STUDENT']}>
             <Profile />
           </ProtectedRoute>
         } />
