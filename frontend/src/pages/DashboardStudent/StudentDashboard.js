@@ -1,335 +1,202 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import StudentSidebar from "../../components/Sidebar/StudentSidebar";
-import SummaryCard from "../../components/Cards/SummaryCard";
-import { apeerActivityAPI, apeerSubmissionAPI, apeerStudentInsightsAPI } from "../../services/apeerApi";
-import { authAPI } from "../../services/api";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { useToast } from "../../contexts/ToastContext";
 import "../DashboardTeacher/Teacher.css";
+
+const API_BASE_URL = "http://localhost:8080";
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [activities, setActivities] = useState([]);
-  const [statusMap, setStatusMap] = useState({});
-  const [history, setHistory] = useState([]);
-  const [aiSummary, setAiSummary] = useState(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState(null);
-  const [user] = useState(() => authAPI.getCurrentUser());
+  const [questionnaires, setQuestionnaires] = useState([]);
+  
+  const currentUser = useMemo(() => {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  }, []);
 
   useEffect(() => {
-    const load = async () => {
+    const fetchQuestionnaires = async () => {
       try {
-        setLoading(true);
-        setError(null);
-        const [list, hist] = await Promise.all([
-          apeerActivityAPI.getActivitiesForStudent(),
-          apeerStudentInsightsAPI.getHistory().catch(() => []),
-        ]);
-        setActivities(list || []);
-        setHistory(hist || []);
-        const map = {};
-        for (const a of list || []) {
-          try {
-            const st = await apeerSubmissionAPI.getSubmissionStatus(a.id);
-            map[a.id] = st;
-          } catch {
-            map[a.id] = { submittedCount: 0, totalMembers: 0, complete: false };
+        const token = currentUser ? currentUser.token : '';
+        if (!token) return;
+
+        const res = await fetch(`${API_BASE_URL}/api/student/questionnaires`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
           }
-        }
-        setStatusMap(map);
-      } catch (e) {
-        setError(e?.message || "Failed to load evaluations");
+        });
+        
+        if (!res.ok) throw new Error("Failed to fetch questionnaires");
+        
+        const data = await res.json();
+        setQuestionnaires(data);
+      } catch (err) {
+        toast.error(err.message);
       } finally {
         setLoading(false);
       }
     };
-    load();
-  }, []);
+    
+    fetchQuestionnaires();
+  }, [currentUser, toast]);
 
-  const loadAiSummary = async () => {
-    setAiLoading(true);
-    setAiError(null);
-    try {
-      const data = await apeerStudentInsightsAPI.getAiSummary();
-      setAiSummary(data);
-    } catch (e) {
-      setAiError(e?.message || "Failed to load AI summary");
-    } finally {
-      setAiLoading(false);
-    }
+  const handleActionClick = (q) => {
+    navigate(`/student/evaluate/${q.id}`);
   };
 
-  const activeActivities = (activities || []).filter((a) => a.isActive);
-  const completedCount = Object.values(statusMap).filter((s) => s.complete).length;
+  const statusCounts = useMemo(() => {
+    const counts = { ALL: questionnaires.length, READY: 0, IN_PROGRESS: 0, SUBMITTED: 0 };
+    questionnaires.forEach(q => {
+      const isComplete = q.peerTasks?.every(t => t.status === 'SUBMITTED');
+      const isStarted = q.peerTasks?.some(t => t.status === 'SUBMITTED');
+      if (isComplete) counts.SUBMITTED++;
+      else if (isStarted) counts.IN_PROGRESS++;
+      else counts.READY++;
+    });
+    return counts;
+  }, [questionnaires]);
 
-  const chartData = history.map((h) => ({
-    name: h.activityTitle ? (h.activityTitle.length > 20 ? h.activityTitle.slice(0, 18) + "…" : h.activityTitle) : `Eval #${h.id}`,
-    Score: h.totalScore || 0,
-  }));
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const getInitials = () => {
-    const f = user?.firstName?.[0] || '';
-    const l = user?.lastName?.[0] || '';
-    return (f + l).toUpperCase() || user?.email?.[0]?.toUpperCase() || '?';
-  };
+  const filteredQuestionnaires = useMemo(() => {
+    return questionnaires.filter(q => {
+      const isComplete = q.peerTasks?.every(t => t.status === 'SUBMITTED');
+      const isStarted = q.peerTasks?.some(t => t.status === 'SUBMITTED');
+      const status = isComplete ? 'SUBMITTED' : (isStarted ? 'IN_PROGRESS' : 'READY');
+      
+      if (statusFilter !== 'ALL' && status !== statusFilter) return false;
+      if (searchTerm && !q.title.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      return true;
+    });
+  }, [questionnaires, statusFilter, searchTerm]);
+
+  const studentName = [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(" ") || "Student";
 
   return (
     <div className="teacher-container">
       <StudentSidebar />
       <div className="teacher-content">
-        <h1>Student Dashboard</h1>
+        <h1 className="teacher-page-title">Student Dashboard</h1>
 
-        {/* Account Info — avatar + fields */}
-        <div className="section" style={{ display: "flex", alignItems: "center", gap: 24 }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: "50%", flexShrink: 0,
-            background: "linear-gradient(135deg, #f2c94c, #d4a843)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 22, fontWeight: 700, color: "#1a0a0c",
-            boxShadow: "0 4px 16px rgba(242,201,76,0.35)",
-          }}>
-            {getInitials()}
+        <section className="teacher-hero">
+          <div>
+            <p className="teacher-hero-kicker">Student Evaluation Queue</p>
+            <h2 className="teacher-hero-title">Welcome, {studentName}</h2>
+            <p className="teacher-hero-text">
+              Track your evaluation progress and complete pending tasks for your team.
+            </p>
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--dtm-gold)", marginBottom: 4 }}>
-              {user?.firstName} {user?.lastName}
-            </div>
-            <div style={{ fontSize: 13, color: "var(--dtm-muted)", marginBottom: 2 }}>{user?.email}</div>
-            <span style={{
-              display: "inline-block", fontSize: 11, fontWeight: 700, letterSpacing: 1,
-              padding: "3px 10px", borderRadius: 999,
-              background: "rgba(138,21,31,0.35)", border: "1px solid rgba(138,21,31,0.5)",
-              color: "var(--dtm-gold)",
-            }}>{user?.role}</span>
+          <div className="adviser-eval-metrics">
+            <span><strong>{statusCounts.ALL}</strong> total</span>
+            <span><strong>{statusCounts.IN_PROGRESS}</strong> in progress</span>
+            <span><strong>{statusCounts.SUBMITTED}</strong> completed</span>
           </div>
-        </div>
+        </section>
 
-        <div className="summary-row">
-          <SummaryCard title="Active Evaluations" value={loading ? "-" : String(activeActivities.length)} icon="📝" />
-          <SummaryCard title="Completed" value={loading ? "-" : String(completedCount)} icon="✅" />
-          <SummaryCard title="Total Received" value={loading ? "-" : String(history.length)} icon="📊" />
-        </div>
+        <section className="section adviser-queue-controls">
+          <div className="adviser-status-tabs">
+            {[
+              { key: "ALL", label: "All" },
+              { key: "READY", label: "Ready" },
+              { key: "IN_PROGRESS", label: "In Progress" },
+              { key: "SUBMITTED", label: "Completed" },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                className={`adviser-status-tab ${statusFilter === tab.key ? "is-active" : ""}`}
+                onClick={() => setStatusFilter(tab.key)}
+              >
+                {tab.label}
+                <span className="adviser-status-tab-count">{statusCounts[tab.key] || 0}</span>
+              </button>
+            ))}
+          </div>
 
-        {error && <div className="error-message">{error}</div>}
+          <input
+            type="text"
+            className="adviser-search-input"
+            placeholder="Search questionnaire title..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </section>
 
-        {/* Peer Evaluations */}
         <div className="section">
-          <h2>Peer Evaluations</h2>
-          {loading ? (
-            <p style={{ color: "var(--dtm-muted)" }}>Loading...</p>
-          ) : activeActivities.length === 0 ? (
-            <p style={{ color: "var(--dtm-muted)" }}>No active peer evaluations at the moment.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {activeActivities.map((activity) => {
-                const st = statusMap[activity.id] || {};
-                const submitted = st.complete;
-                const isPastDeadline = activity.deadline && new Date() > new Date(activity.deadline);
-                const progress = st.totalMembers > 0 ? Math.round((st.submittedCount / st.totalMembers) * 100) : 0;
-                return (
-                  <div
-                    key={activity.id}
-                    style={{
-                      padding: "16px 20px",
-                      background: submitted
-                        ? "rgba(39,174,96,0.08)"
-                        : isPastDeadline
-                        ? "rgba(138,21,31,0.12)"
-                        : "rgba(255,255,255,0.04)",
-                      border: `1px solid ${submitted ? "rgba(39,174,96,0.25)" : isPastDeadline ? "rgba(176,0,32,0.3)" : "rgba(255,255,255,0.08)"}`,
-                      borderRadius: 12,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: 16,
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
-                        <strong style={{ color: "var(--dtm-text)", fontSize: 15 }}>{activity.title}</strong>
-                        {submitted && (
-                          <span style={{
-                            fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-                            background: "rgba(39,174,96,0.2)", border: "1px solid rgba(39,174,96,0.4)",
-                            color: "#4cd97b",
-                          }}>✓ Completed</span>
-                        )}
-                        {isPastDeadline && !submitted && (
-                          <span style={{
-                            fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-                            background: "rgba(176,0,32,0.2)", border: "1px solid rgba(176,0,32,0.4)",
-                            color: "#ff7b7b",
-                          }}>Closed</span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 13, color: isPastDeadline ? "#ff7b7b" : "var(--dtm-muted)" }}>
-                        Due: {activity.deadline ? new Date(activity.deadline).toLocaleDateString() : "—"}
-                      </div>
-                      {!submitted && st.totalMembers > 0 && (
-                        <div style={{ marginTop: 8 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--dtm-muted)", marginBottom: 4 }}>
-                            <span>Progress</span>
-                            <span>{st.submittedCount || 0}/{st.totalMembers} submitted</span>
-                          </div>
-                          <div style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 99 }}>
-                            <div style={{
-                              height: "100%", width: `${progress}%`, borderRadius: 99,
-                              background: "linear-gradient(90deg, #8a151f, #f2c94c)",
-                              transition: "width 0.4s ease",
-                            }} />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    {!submitted && !isPastDeadline && (
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        style={{ flexShrink: 0 }}
-                        onClick={() => navigate(`/student/evaluation/${activity.id}`)}
-                      >
-                        {st.submittedCount > 0 ? "Continue" : "Start"}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Score Trends Chart */}
-        {history.length > 0 && (
-          <div className="section">
-            <h2>My Score Trends</h2>
-            <p style={{ color: "var(--dtm-muted)", fontSize: 13, marginBottom: 16 }}>Total peer evaluation scores received across activities.</p>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#a09890" }} axisLine={{ stroke: "rgba(255,255,255,0.1)" }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#a09890" }} axisLine={{ stroke: "rgba(255,255,255,0.1)" }} />
-                <Tooltip
-                  contentStyle={{ background: "#3b252b", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, color: "#f5f0eb" }}
-                  cursor={{ fill: "rgba(242,201,76,0.06)" }}
-                />
-                <Bar dataKey="Score" fill="url(#scoreGrad)" radius={[4, 4, 0, 0]} />
-                <defs>
-                  <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f2c94c" stopOpacity={0.9} />
-                    <stop offset="100%" stopColor="#8a151f" stopOpacity={0.9} />
-                  </linearGradient>
-                </defs>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="section-header-row">
+            <h2>Your Evaluation Tasks</h2>
           </div>
-        )}
-
-        {/* Evaluation History Table */}
-        {history.length > 0 && (
-          <div className="section">
-            <h2>Evaluation History</h2>
+          
+          {loading ? (
+            <p>Loading...</p>
+          ) : questionnaires.length === 0 ? (
+            <p style={{ marginTop: 20, color: 'var(--dtm-muted)' }}>You have no assigned questionnaires at this time.</p>
+          ) : (
             <table className="class-table">
               <thead>
                 <tr>
-                  <th>Activity</th>
-                  <th>Total Score</th>
-                  <th>Date Received</th>
+                  <th>#</th>
+                  <th>Title</th>
+                  <th>Description</th>
+                  <th>Status</th>
+                  <th>Progress</th>
+                  <th>Assigned Date</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {history.map((h) => (
-                  <tr key={h.id}>
-                    <td>{h.activityTitle || `Activity #${h.activityId}`}</td>
-                    <td>
-                      <span style={{
-                        fontWeight: 700, color: "var(--dtm-gold)",
-                        background: "rgba(242,201,76,0.1)", padding: "3px 10px",
-                        borderRadius: 999, fontSize: 13,
-                      }}>{h.totalScore}</span>
-                    </td>
-                    <td>{h.submittedAt ? new Date(h.submittedAt).toLocaleDateString() : "—"}</td>
-                  </tr>
-                ))}
+                {filteredQuestionnaires.map((q, idx) => {
+                  const completed = q.peerTasks?.filter(t => t.status === 'SUBMITTED').length || 0;
+                  const total = q.peerTasks?.length || 0;
+                  const isComplete = completed === total && total > 0;
+                  const isStarted = completed > 0;
+                  const progressPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+                  return (
+                    <tr key={q.id}>
+                      <td>{idx + 1}</td>
+                      <td><strong>{q.title}</strong></td>
+                      <td>{q.description || "No description"}</td>
+                      <td>
+                        {isComplete ? (
+                          <span className="status-badge status-active">Completed</span>
+                        ) : isStarted ? (
+                          <span className="status-badge adviser-status-progress">In Progress</span>
+                        ) : (
+                          <span className="status-badge status-active">Ready</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="adviser-progress-wrap">
+                          <div className="adviser-progress-track">
+                            <div className="adviser-progress-fill" style={{ width: `${progressPercent}%` }}></div>
+                          </div>
+                          <span className="adviser-progress-text">
+                            {progressPercent}% ({completed}/{total})
+                          </span>
+                        </div>
+                      </td>
+                      <td>{new Date(q.createdAt).toLocaleDateString()}</td>
+                      <td>
+                        {isComplete ? (
+                          <span style={{ color: '#4ade80', fontSize: '0.85rem', fontWeight: 600 }}>Submitted ✓</span>
+                        ) : (
+                          <button 
+                            className="btn btn-sm" 
+                            onClick={() => handleActionClick(q)}
+                          >
+                            {isStarted ? 'Resume' : 'Start'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-          </div>
-        )}
-
-        {/* AI Feedback Summary */}
-        <div className="section">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <h2 style={{ margin: 0 }}>AI Feedback Summary</h2>
-            <button type="button" className="btn btn-primary" onClick={loadAiSummary} disabled={aiLoading}>
-              {aiLoading ? "Generating…" : aiSummary ? "↺ Refresh" : "✦ Generate"}
-            </button>
-          </div>
-
-          {aiError && <div className="error-message">{aiError}</div>}
-
-          {!aiSummary && !aiLoading && (
-            <p style={{ color: "var(--dtm-muted)", fontSize: 14 }}>
-              Click <strong style={{ color: "var(--dtm-gold)" }}>Generate</strong> to get a personalized AI summary of your peer feedback — strengths, areas for improvement, and suggestions.
-            </p>
-          )}
-
-          {aiSummary && aiSummary.status === "no_data" && (
-            <p style={{ color: "var(--dtm-muted)" }}>{aiSummary.message}</p>
-          )}
-
-          {aiSummary && aiSummary.status === "success" && (
-            <div>
-              <p style={{ color: "var(--dtm-muted)", fontSize: 13, marginBottom: 16 }}>
-                Based on <strong style={{ color: "var(--dtm-text)" }}>{aiSummary.totalEvaluations}</strong> peer evaluation(s) received.
-              </p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
-                <div style={{
-                  background: "rgba(39,174,96,0.08)", borderRadius: 12, padding: 16,
-                  borderLeft: "4px solid #27ae60", border: "1px solid rgba(39,174,96,0.2)",
-                  borderLeftWidth: 4, borderLeftColor: "#27ae60",
-                }}>
-                  <h4 style={{ color: "#4cd97b", marginBottom: 10, fontSize: 14, fontWeight: 700 }}>✓ Strengths</h4>
-                  {(aiSummary.strengths || []).length === 0
-                    ? <p style={{ color: "var(--dtm-muted)", fontSize: 13 }}>None identified yet.</p>
-                    : <ul style={{ margin: 0, paddingLeft: 16 }}>
-                        {(aiSummary.strengths || []).map((s, i) => (
-                          <li key={i} style={{ fontSize: 13, marginBottom: 6, color: "var(--dtm-text)", lineHeight: 1.5 }}>{s}</li>
-                        ))}
-                      </ul>
-                  }
-                </div>
-                <div style={{
-                  background: "rgba(245,158,11,0.08)", borderRadius: 12, padding: 16,
-                  border: "1px solid rgba(245,158,11,0.2)", borderLeftWidth: 4, borderLeftColor: "#f59e0b",
-                }}>
-                  <h4 style={{ color: "#fbbf24", marginBottom: 10, fontSize: 14, fontWeight: 700 }}>⚠ Areas to Improve</h4>
-                  {(aiSummary.weaknesses || []).length === 0
-                    ? <p style={{ color: "var(--dtm-muted)", fontSize: 13 }}>None identified yet.</p>
-                    : <ul style={{ margin: 0, paddingLeft: 16 }}>
-                        {(aiSummary.weaknesses || []).map((w, i) => (
-                          <li key={i} style={{ fontSize: 13, marginBottom: 6, color: "var(--dtm-text)", lineHeight: 1.5 }}>{w}</li>
-                        ))}
-                      </ul>
-                  }
-                </div>
-                <div style={{
-                  background: "rgba(59,130,246,0.08)", borderRadius: 12, padding: 16,
-                  border: "1px solid rgba(59,130,246,0.2)", borderLeftWidth: 4, borderLeftColor: "#3b82f6",
-                }}>
-                  <h4 style={{ color: "#60a5fa", marginBottom: 10, fontSize: 14, fontWeight: 700 }}>💡 Suggestions</h4>
-                  {(aiSummary.suggestions || []).length === 0
-                    ? <p style={{ color: "var(--dtm-muted)", fontSize: 13 }}>No suggestions yet.</p>
-                    : <ul style={{ margin: 0, paddingLeft: 16 }}>
-                        {(aiSummary.suggestions || []).map((sg, i) => (
-                          <li key={i} style={{ fontSize: 13, marginBottom: 6, color: "var(--dtm-text)", lineHeight: 1.5 }}>{sg}</li>
-                        ))}
-                      </ul>
-                  }
-                </div>
-              </div>
-            </div>
           )}
         </div>
       </div>

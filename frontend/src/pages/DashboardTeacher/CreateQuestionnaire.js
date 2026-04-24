@@ -16,6 +16,7 @@ const CreateQuestionnaire = () => {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
+    deadline: "",
     questions: [],
     sections: [
       {
@@ -24,7 +25,8 @@ const CreateQuestionnaire = () => {
         orderIndex: 0,
         items: []
       }
-    ]
+    ],
+    target: "ADVISER"
   });
 
   const [newSection, setNewSection] = useState({
@@ -35,6 +37,7 @@ const CreateQuestionnaire = () => {
 
   const [newQuestion, setNewQuestion] = useState({
     questionText: "",
+    description: "",
     questionType: "NUMERIC_SCALE",
     minScore: 1,
     maxScore: 5,
@@ -76,7 +79,7 @@ const CreateQuestionnaire = () => {
 
   const handleCreateQuestionnaire = async (e) => {
     e.preventDefault();
-    
+
     if (!googleLinked) {
       const linkedNow = await checkGoogleLink();
       if (!linkedNow) {
@@ -91,7 +94,7 @@ const CreateQuestionnaire = () => {
     }
 
     const sectionedQCount = formData.sections.reduce((sum, sec) => sum + sec.items.length, 0);
-    
+
     if (sectionedQCount === 0) {
       toast.error('Please add at least one question');
       return;
@@ -99,7 +102,11 @@ const CreateQuestionnaire = () => {
 
     try {
       toast.info('Creating questionnaire...');
-      await questionnaireAPI.createQuestionnaire(formData);
+      const submissionData = {
+        ...formData,
+        deadline: formData.deadline ? formData.deadline + ':00' : null
+      };
+      await questionnaireAPI.createQuestionnaire(submissionData);
       toast.success('Questionnaire created successfully!');
       navigate('/teacher/questionnaires');
     } catch (err) {
@@ -128,6 +135,7 @@ const CreateQuestionnaire = () => {
 
     setNewQuestion({
       questionText: "",
+      description: "",
       questionType: "NUMERIC_SCALE",
       minScore: 1,
       maxScore: 5,
@@ -220,8 +228,8 @@ const CreateQuestionnaire = () => {
       <div className="teacher-content">
         <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h1 style={{ margin: '0' }}>Create New Questionnaire</h1>
-          <button 
-            className="btn btn-secondary" 
+          <button
+            className="btn btn-secondary"
             onClick={() => navigate('/teacher/questionnaires')}
           >
             ← Back to Questionnaires
@@ -272,9 +280,9 @@ const CreateQuestionnaire = () => {
                   </div>
                 </div>
 
-                <div style={{ 
-                  padding: '10px', 
-                  backgroundColor: 'rgba(138, 21, 31, 0.2)', 
+                <div style={{
+                  padding: '10px',
+                  backgroundColor: 'rgba(138, 21, 31, 0.2)',
                   borderLeft: '3px solid var(--dtm-gold)',
                   borderRadius: '4px',
                   marginBottom: '8px',
@@ -316,7 +324,7 @@ const CreateQuestionnaire = () => {
                   <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: '600', color: 'var(--dtm-gold)' }}>
                     Questions in this page
                   </h4>
-                  
+
                   {formData.sections[activeSectionIndex].items && formData.sections[activeSectionIndex].items.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '400px', overflowY: 'auto' }}>
                       {formData.sections[activeSectionIndex].items.map((q, index) => (
@@ -364,221 +372,262 @@ const CreateQuestionnaire = () => {
           {/* RIGHT COLUMN - CREATION FORM */}
           <div className="questionnaire-creation-panel">
             <form onSubmit={handleCreateQuestionnaire} className="creation-form">
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginBottom: '0px', position: 'relative' }}>
-              <div className="form-group" style={{ flex: 1 }}>
-                <label>Title *</label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  required
-                  placeholder="e.g., Team Performance Evaluation"
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginBottom: '0px', position: 'relative' }}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>Title *</label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    required
+                    placeholder="e.g., Team Performance Evaluation"
+                    style={{ fontSize: '11px' }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ width: '120px' }}>
+                  <label>Questionnaire For</label>
+                  <select
+                    value={formData.target}
+                    onChange={(e) => setFormData({ ...formData, target: e.target.value })}
+                    style={{ fontSize: '11px' }}
+                  >
+                    <option value="ADVISER">Adviser</option>
+                    <option value="STUDENT">Student</option>
+                  </select>
+                </div>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={!googleLinked || totalQuestions === 0}
+                  style={{ padding: '8px 12px', fontSize: '11px', marginTop: '24px' }}
+                >
+                  Create
+                </button>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '4px', marginTop: '-6px' }}>
+                <label>Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows="2"
+                  placeholder="What is this questionnaire about?"
                   style={{ fontSize: '11px' }}
                 />
               </div>
-              <button 
-                type="submit" 
-                className="btn btn-primary" 
-                disabled={!googleLinked || totalQuestions === 0} 
-                style={{ padding: '8px 12px', fontSize: '11px', marginTop: '24px' }}
-              >
-                Create
-              </button>
-            </div>
 
-            <div className="form-group" style={{ marginBottom: '4px', marginTop: '-6px' }}>
-              <label>Description</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows="2"
-                placeholder="What is this questionnaire about?"
-                style={{ fontSize: '11px' }}
-              />
-            </div>
-
-            {/* Questions Display */}
-            <div style={{ marginBottom: '8px', marginTop: '4px' }}>
-              <h3 style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: '600', color: 'var(--dtm-gold)' }}>Add Question</h3>
-              
-              {/* Add Question Form */}
-              {activeSectionIndex !== null && (
-                <div className="add-question-box">
-                  <div className="form-group">
-                    <label>Question Text *</label>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1 }}>
-                        <input
-                          type="text"
-                          value={newQuestion.questionText}
-                          onChange={(e) => setNewQuestion({ ...newQuestion, questionText: e.target.value })}
-                          placeholder="Ask your question..."
-                          style={{ fontSize: '11px', flex: 1 }}
-                        />
-
-                        <select
-                          value={newQuestion.questionType}
-                          onChange={(e) => setNewQuestion({ ...newQuestion, questionType: e.target.value })}
-                          style={{ fontSize: '11px', minWidth: '140px' }}
-                        >
-                          <option value="NUMERIC_SCALE">Numeric Scale</option>
-                          <option value="RATING">Rating</option>
-                          <option value="TEXT">Text Response</option>
-                          <option value="MULTIPLE_CHOICE">Multiple Choice</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <button 
-                          type="button" 
-                          onClick={handleAddQuestion}
-                          className="add-question-btn"
-                          style={{ 
-                            width: '36px', 
-                            height: '36px', 
-                            borderRadius: '50%', 
-                            background: 'linear-gradient(135deg, rgba(138, 21, 31, 0.9), rgba(138, 21, 31, 0.6))',
-                            border: '1px solid rgba(242, 201, 76, 0.4)',
-                            color: 'var(--dtm-gold)',
-                            fontSize: '18px',
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            lineHeight: '0',
-                            padding: '0',
-                            flexShrink: 0,
-                            position: 'relative'
-                          }}
-                        >
-                          +
-                        </button>
-
-                        <button 
-                          type="button" 
-                          onClick={handleToggleSectionsMode} 
-                          className="add-page-icon-btn"
-                          style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: '0', padding: '0' }}
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect x="3" y="2" width="16" height="8" rx="1"></rect>
-                            <rect x="3" y="14" width="16" height="8" rx="1"></rect>
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                {(newQuestion.questionType === 'NUMERIC_SCALE' || newQuestion.questionType === 'RATING') && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                    <div className="form-group">
-                      <label>Min</label>
-                      <input
-                        type="number"
-                        value={newQuestion.minScore}
-                        onChange={(e) => setNewQuestion({ ...newQuestion, minScore: parseInt(e.target.value) })}
-                        min="0"
-                        style={{ fontSize: '11px' }}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Max</label>
-                      <input
-                        type="number"
-                        value={newQuestion.maxScore}
-                        onChange={(e) => setNewQuestion({ ...newQuestion, maxScore: parseInt(e.target.value) })}
-                        min="1"
-                        style={{ fontSize: '11px' }}
-                      />
-                    </div>
-                  </div>
+              <div className="form-group" style={{ marginBottom: '8px' }}>
+                <label>Deadline (Optional)</label>
+                <input
+                  type="datetime-local"
+                  value={formData.deadline}
+                  onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                  style={{ fontSize: '11px' }}
+                />
+                {formData.deadline && (
+                  <small style={{ color: 'var(--dtm-muted)', fontSize: '10px' }}>
+                    Form will auto-close on {new Date(formData.deadline).toLocaleString()}
+                  </small>
                 )}
+              </div>
 
-                {newQuestion.questionType === 'MULTIPLE_CHOICE' && (
-                  <div className="form-group">
-                    <label>Choices (min. 2)</label>
-                    {newQuestion.choices.map((choice, index) => (
-                      <div key={index} className="choice-row">
-                        <span className="choice-label">
-                          {String.fromCharCode(65 + index)}.
-                        </span>
-                        <input
-                          type="text"
-                          value={choice}
-                          onChange={(e) => {
-                            const updatedChoices = [...newQuestion.choices];
-                            updatedChoices[index] = e.target.value;
-                            setNewQuestion({ ...newQuestion, choices: updatedChoices });
-                          }}
-                          placeholder={`Option ${index + 1}`}
-                          className="choice-input"
-                          style={{ fontSize: '11px' }}
-                        />
-                        {newQuestion.choices.length > 2 && (
+              {/* Questions Display */}
+              <div style={{ marginBottom: '8px', marginTop: '4px' }}>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: '600', color: 'var(--dtm-gold)' }}>Add Question</h3>
+
+                {/* Add Question Form */}
+                {activeSectionIndex !== null && (
+                  <div className="add-question-box">
+                    <div className="form-group">
+                      <label>Question Text *</label>
+                      <small style={{ color: 'var(--dtm-muted)', fontSize: '10px', display: 'block', marginBottom: '4px' }}>
+                        Add an optional description below the question for extra context.
+                      </small>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1 }}>
+                          <input
+                            type="text"
+                            value={newQuestion.questionText}
+                            onChange={(e) => setNewQuestion({ ...newQuestion, questionText: e.target.value })}
+                            placeholder="Ask your question..."
+                            style={{ fontSize: '11px', flex: 1 }}
+                          />
+
+                          <select
+                            value={newQuestion.questionType}
+                            onChange={(e) => setNewQuestion({ ...newQuestion, questionType: e.target.value })}
+                            style={{ fontSize: '11px', minWidth: '140px' }}
+                          >
+                            <option value="NUMERIC_SCALE">Numeric Scale</option>
+                            <option value="RATING">Rating</option>
+                            <option value="TEXT">Text Response</option>
+                            <option value="MULTIPLE_CHOICE">Multiple Choice</option>
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                           <button
                             type="button"
-                            className="btn btn-sm btn-danger"
-                            onClick={() => {
-                              const updatedChoices = newQuestion.choices.filter((_, i) => i !== index);
-                              setNewQuestion({ ...newQuestion, choices: updatedChoices });
+                            onClick={handleAddQuestion}
+                            className="add-question-btn"
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '50%',
+                              background: 'linear-gradient(135deg, rgba(138, 21, 31, 0.9), rgba(138, 21, 31, 0.6))',
+                              border: '1px solid rgba(242, 201, 76, 0.4)',
+                              color: 'var(--dtm-gold)',
+                              fontSize: '18px',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              lineHeight: '0',
+                              padding: '0',
+                              flexShrink: 0,
+                              position: 'relative'
                             }}
-                            title="Remove choice"
-                            style={{ padding: '5px 8px', fontSize: '10px' }}
                           >
-                            ×
+                            +
                           </button>
-                        )}
+
+                          <button
+                            type="button"
+                            onClick={handleToggleSectionsMode}
+                            className="add-page-icon-btn"
+                            style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: '0', padding: '0' }}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="3" y="2" width="16" height="8" rx="1"></rect>
+                              <rect x="3" y="14" width="16" height="8" rx="1"></rect>
+                            </svg>
+                          </button>
+                        </div>
                       </div>
-                    ))}
-                    
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-assign"
-                      onClick={() => {
-                        setNewQuestion({ 
-                          ...newQuestion, 
-                          choices: [...newQuestion.choices, ''] 
-                        });
-                      }}
-                      style={{ marginTop: '4px', padding: '5px 10px', fontSize: '10px' }}
-                    >
-                      + Add Option
-                    </button>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: '6px' }}>
+                      <label style={{ marginBottom: '3px' }}>Description (Optional)</label>
+                      <input
+                        type="text"
+                        value={newQuestion.description}
+                        onChange={(e) => setNewQuestion({ ...newQuestion, description: e.target.value })}
+                        placeholder="e.g., Rate from 1 (poor) to 5 (excellent)"
+                        style={{ fontSize: '11px', width: '100%' }}
+                      />
+                    </div>
+
+                    {(newQuestion.questionType === 'NUMERIC_SCALE' || newQuestion.questionType === 'RATING') && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                        <div className="form-group">
+                          <label>Min</label>
+                          <input
+                            type="number"
+                            value={newQuestion.minScore}
+                            onChange={(e) => setNewQuestion({ ...newQuestion, minScore: parseInt(e.target.value) })}
+                            min="0"
+                            style={{ fontSize: '11px' }}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Max</label>
+                          <input
+                            type="number"
+                            value={newQuestion.maxScore}
+                            onChange={(e) => setNewQuestion({ ...newQuestion, maxScore: parseInt(e.target.value) })}
+                            min="1"
+                            style={{ fontSize: '11px' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {newQuestion.questionType === 'MULTIPLE_CHOICE' && (
+                      <div className="form-group">
+                        <label>Choices (min. 2)</label>
+                        {newQuestion.choices.map((choice, index) => (
+                          <div key={index} className="choice-row">
+                            <span className="choice-label">
+                              {String.fromCharCode(65 + index)}.
+                            </span>
+                            <input
+                              type="text"
+                              value={choice}
+                              onChange={(e) => {
+                                const updatedChoices = [...newQuestion.choices];
+                                updatedChoices[index] = e.target.value;
+                                setNewQuestion({ ...newQuestion, choices: updatedChoices });
+                              }}
+                              placeholder={`Option ${index + 1}`}
+                              className="choice-input"
+                              style={{ fontSize: '11px' }}
+                            />
+                            {newQuestion.choices.length > 2 && (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-danger"
+                                onClick={() => {
+                                  const updatedChoices = newQuestion.choices.filter((_, i) => i !== index);
+                                  setNewQuestion({ ...newQuestion, choices: updatedChoices });
+                                }}
+                                title="Remove choice"
+                                style={{ padding: '5px 8px', fontSize: '10px' }}
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        ))}
+
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-assign"
+                          onClick={() => {
+                            setNewQuestion({
+                              ...newQuestion,
+                              choices: [...newQuestion.choices, '']
+                            });
+                          }}
+                          style={{ marginTop: '4px', padding: '5px 10px', fontSize: '10px' }}
+                        >
+                          + Add Option
+                        </button>
+                      </div>
+                    )}
+
+                    <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '4px' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '4px' }}>
+                        <div className="form-group" style={{ flex: 1, margin: 0 }}>
+                          <label style={{ marginBottom: '3px' }}>Correct Answer (Optional)</label>
+                          <input
+                            type="text"
+                            placeholder="Leave blank for non-graded"
+                            value={newQuestion.correctAnswer}
+                            onChange={(e) => setNewQuestion({ ...newQuestion, correctAnswer: e.target.value })}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ minWidth: '80px', margin: 0 }}>
+                          <label style={{ marginBottom: '3px' }}>Points</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={newQuestion.pointsValue}
+                            onChange={(e) => setNewQuestion({ ...newQuestion, pointsValue: parseInt(e.target.value) || 1 })}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                      </div>
+                      <small style={{ display: 'block', fontSize: '10px', color: 'var(--dtm-muted)' }}>
+                        For MULTIPLE CHOICE: choice letter or text.
+                      </small>
+                    </div>
                   </div>
                 )}
 
-                <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '4px' }}>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '4px' }}>
-                    <div className="form-group" style={{ flex: 1, margin: 0 }}>
-                      <label style={{ marginBottom: '3px' }}>Correct Answer (Optional)</label>
-                      <input
-                        type="text"
-                        placeholder="Leave blank for non-graded"
-                        value={newQuestion.correctAnswer}
-                        onChange={(e) => setNewQuestion({ ...newQuestion, correctAnswer: e.target.value })}
-                        style={{ width: '100%' }}
-                      />
-                    </div>
-                    <div className="form-group" style={{ minWidth: '80px', margin: 0 }}>
-                      <label style={{ marginBottom: '3px' }}>Points</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={newQuestion.pointsValue}
-                        onChange={(e) => setNewQuestion({ ...newQuestion, pointsValue: parseInt(e.target.value) || 1 })}
-                        style={{ width: '100%' }}
-                      />
-                    </div>
-                  </div>
-                  <small style={{ display: 'block', fontSize: '10px', color: 'var(--dtm-muted)' }}>
-                    For MULTIPLE CHOICE: choice letter or text.
-                  </small>
-                </div>
               </div>
-              )}
-
-            </div>
 
 
             </form>

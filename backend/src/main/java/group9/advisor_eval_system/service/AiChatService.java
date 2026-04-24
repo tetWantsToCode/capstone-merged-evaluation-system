@@ -3,9 +3,7 @@ package group9.advisor_eval_system.service;
 import group9.advisor_eval_system.dto.AiChatRequest;
 import group9.advisor_eval_system.entity.*;
 import group9.advisor_eval_system.entity.Evaluation.EvaluationStatus;
-import group9.advisor_eval_system.repository.EvaluationRepository;
-import group9.advisor_eval_system.repository.QuestionnaireRepository;
-import group9.advisor_eval_system.repository.SchoolClassRepository;
+import group9.advisor_eval_system.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -55,6 +53,8 @@ public class AiChatService {
         private final SchoolClassRepository schoolClassRepository;
         private final QuestionnaireRepository questionnaireRepository;
         private final EvaluationRepository evaluationRepository;
+        private final StudentRepository studentRepository;
+        private final StudentEvaluationRepository studentEvaluationRepository;
 
         @Transactional(readOnly = true)
         public String chat(User user, AiChatRequest request) {
@@ -69,9 +69,18 @@ public class AiChatService {
                         return scopeCheckResult;
                 }
 
-                log.info("Building AI context for userId={}", user.getId());
-                String teacherContext = buildTeacherContext(user);
-                String evaluationContext = buildEvaluationContext(user);
+                log.info("Building AI context for userId={} role={}", user.getId(), user.getRole());
+                
+                String primaryContext = "";
+                String evaluationContext = "";
+
+                if (user.getRole() == User.UserRole.STUDENT) {
+                        primaryContext = buildStudentContext(user);
+                        evaluationContext = buildStudentEvaluationSummary(user);
+                } else {
+                        primaryContext = buildTeacherContext(user);
+                        evaluationContext = buildEvaluationContext(user);
+                }
 
                 AiIntent intent = detectIntent(message, contextType);
                 String transcript = formatHistoryTail(request == null ? null : request.getHistory(), 12);
@@ -104,7 +113,7 @@ public class AiChatService {
                                 "- If required info is missing, ask at most 1-2 clarifying questions.",
                                 "",
                                 "You will be given:",
-                                "- Teacher context (read-only)",
+                                "- " + (user.getRole() == User.UserRole.STUDENT ? "Student" : "Teacher") + " context (read-only)",
                                 "- Evaluation data summary (read-only) — computed from submitted respondent evaluations",
                                 "- Optional report/questionnaire context (read-only)",
                                 "- Optional conversation history",
@@ -120,7 +129,7 @@ public class AiChatService {
                                 modeInstruction);
 
                 List<String> promptParts = new ArrayList<>();
-                promptParts.add("Teacher context (read-only):\n" + safeBlock(teacherContext));
+                promptParts.add((user.getRole() == User.UserRole.STUDENT ? "Student" : "Teacher") + " context (read-only):\n" + safeBlock(primaryContext));
 
                 if (evaluationContext != null && !evaluationContext.isBlank()) {
                         promptParts.add("Evaluation data summary (read-only):\n" + safeBlock(evaluationContext));
@@ -321,6 +330,76 @@ public class AiChatService {
                                 "role=" + user.getRole(),
                                 "classes=" + (classSummary.isBlank() ? "(none)" : classSummary),
                                 "questionnaires=" + (questionnaireSummary.isBlank() ? "(none)" : questionnaireSummary));
+        }
+
+        private String buildStudentContext(User user) {
+                // Fetch student info
+                Student student = studentRepository.findByEmail(user.getEmail()).orElse(null);
+                if (student == null) return "studentId=" + user.getId() + "\nrole=STUDENT\n(Profile not found)";
+
+                String teamName = student.getTeamStudents() != null && !student.getTeamStudents().isEmpty()
+                                ? student.getTeamStudents().get(0).getTeam().getName()
+                                : "(no team)";
+
+                return String.join("\n",
+                                "studentId=" + user.getId(),
+                                "name=" + student.getFirstName() + " " + student.getLastName(),
+                                "role=STUDENT",
+                                "team=" + teamName);
+        }
+
+        private String buildStudentEvaluationSummary(User user) {
+                Student student = studentRepository.findByEmail(user.getEmail()).orElse(null);
+                if (student == null) return "No evaluation data found.";
+
+                // This logic is similar to getStudentReportSummary in service
+                // But I'll do it here to keep AiChatService self-contained or I could inject the service.
+                // For now, I'll implement a concise version.
+                
+                // For AI, we want a text summary of feedback received
+                StringBuilder sb = new StringBuilder();
+                sb.append("Feedback and scores RECEIVED by this student:\n");
+
+                // Peer evaluations where student is evaluatee
+                List<StudentEvaluation> evalsReceived = studentEvaluationRepository.findByEvaluateeIdAndStatus(student.getId(), StudentEvaluation.EvaluationStatus.SUBMITTED);
+                
+                if (evalsReceived.isEmpty()) {
+                        return "No peer evaluations have been submitted for you yet.";
+                }
+
+                Map<Long, List<Double>> qScores = new HashMap<>();
+                Map<Long, String> qTitles = new HashMap<>();
+                List<String> allComments = new ArrayList<>();
+
+                for (StudentEvaluation eval : evalsReceived) {
+                        qTitles.put(eval.getQuestionnaire().getId(), eval.getQuestionnaire().getTitle());
+                        if (eval.getScores() != null) {
+                                for (StudentEvaluationScore score : eval.getScores()) {
+                                        if (score.getNumericScore() != null) {
+                                                qScores.computeIfAbsent(eval.getQuestionnaire().getId(), k -> new ArrayList<>()).add(score.getNumericScore());
+                                        }
+                                        if (score.getTextResponse() != null && !score.getTextResponse().trim().isEmpty()) {
+                                                allComments.add(score.getTextResponse());
+                                        }
+                                }
+                        }
+                }
+
+                for (Long qId : qTitles.keySet()) {
+                        sb.append("\nQuestionnaire: ").append(qTitles.get(qId)).append("\n");
+                        List<Double> scores = qScores.get(qId);
+                        if (scores != null && !scores.isEmpty()) {
+                                double avg = scores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                                sb.append("- Average score received from peers: ").append(String.format("%.2f", avg)).append("\n");
+                        }
+                }
+
+                if (!allComments.isEmpty()) {
+                        sb.append("\nComments received from peers:\n");
+                        allComments.stream().distinct().limit(10).forEach(c -> sb.append("- \"").append(c).append("\"\n"));
+                }
+
+                return sb.toString();
         }
 
         private String formatClass(SchoolClass c) {

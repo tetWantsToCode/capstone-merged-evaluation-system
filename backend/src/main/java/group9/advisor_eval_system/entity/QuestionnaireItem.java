@@ -22,6 +22,9 @@ public class QuestionnaireItem {
     @Column(nullable = false, length = 1000)
     private String questionText;
     
+    @Column(nullable = true, length = 500)
+    private String description; // Optional helper text shown below the question
+    
     @Column(nullable = false)
     private Integer orderIndex; // For sorting questions
     

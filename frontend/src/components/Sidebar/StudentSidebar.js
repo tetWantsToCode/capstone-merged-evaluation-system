@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { authAPI } from "../../services/api";
 import "./Sidebar.css";
 
 const StudentSidebar = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [user, setUser] = useState(null);
-  const [forceOpen, setForceOpen] = useState(() => sessionStorage.getItem('sidebarForceOpen') === '1');
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -27,22 +27,17 @@ const StudentSidebar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (!forceOpen) return;
-    const timer = setTimeout(() => {
-      sessionStorage.removeItem('sidebarForceOpen');
-      setForceOpen(false);
-    }, 450);
-    return () => clearTimeout(timer);
-  }, [forceOpen]);
-
   const handleLogout = () => {
-    authAPI.logout();
+    if (authAPI && authAPI.logout) {
+      authAPI.logout();
+    } else {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+    }
     navigate('/login');
   };
 
   const handleNavigate = (path) => {
-    sessionStorage.setItem('sidebarForceOpen', '1');
     navigate(path);
   };
 
@@ -53,11 +48,25 @@ const StudentSidebar = () => {
     return (f + l).toUpperCase() || user.email?.[0]?.toUpperCase() || '?';
   };
 
+  const menuItems = [
+    { label: "Dashboard", icon: "⌂", path: "/student/dashboard" },
+    { label: "My Team", icon: "👥", path: "/student/team" }
+  ];
+
   return (
-    <div className={`sidebar${forceOpen ? ' sidebar-force-open' : ''}`}>
+    <div className="sidebar sidebar--student">
       <h2>Student Panel</h2>
       <ul>
-        <li onClick={() => handleNavigate('/student/dashboard')}>Dashboard</li>
+        {menuItems.map((item) => (
+          <li
+            key={item.path}
+            className={location.pathname.startsWith(item.path) ? "is-active" : ""}
+            onClick={() => handleNavigate(item.path)}
+          >
+            <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+            <span>{item.label}</span>
+          </li>
+        ))}
       </ul>
 
       <div className="sidebar-profile" ref={menuRef}>
@@ -69,9 +78,6 @@ const StudentSidebar = () => {
           <div className="profile-dropdown">
             <div className="profile-dropdown-header">
               <span className="dropdown-email">{user?.email}</span>
-            </div>
-            <div className="profile-dropdown-item" onClick={() => { handleNavigate('/profile'); setShowProfileMenu(false); }}>
-              Profile
             </div>
             <div className="profile-dropdown-item profile-dropdown-logout" onClick={handleLogout}>
               Logout

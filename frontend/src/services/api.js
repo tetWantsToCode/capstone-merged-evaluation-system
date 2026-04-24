@@ -803,6 +803,22 @@ export const teacherReportAPI = {
     return await response.json();
   },
 
+  getStudentQuestionnaireEvaluations: async (questionnaireId) => {
+    const response = await fetch(
+      `${API_BASE_URL}/teacher/reports/questionnaire/${questionnaireId}/student-evaluations`,
+      {
+        method: 'GET',
+        headers: getHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      await throwApiError(response, 'Failed to fetch student evaluations');
+    }
+
+    return await response.json();
+  },
+
   getEvaluationDetails: async (evaluationId) => {
     const response = await fetch(
       `${API_BASE_URL}/teacher/reports/evaluation/${evaluationId}`,
@@ -814,6 +830,22 @@ export const teacherReportAPI = {
 
     if (!response.ok) {
       await throwApiError(response, 'Failed to fetch evaluation details');
+    }
+
+    return await response.json();
+  },
+
+  getStudentEvaluationDetails: async (evaluationId) => {
+    const response = await fetch(
+      `${API_BASE_URL}/teacher/reports/student-evaluation/${evaluationId}`,
+      {
+        method: 'GET',
+        headers: getHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      await throwApiError(response, 'Failed to fetch student evaluation details');
     }
 
     return await response.json();

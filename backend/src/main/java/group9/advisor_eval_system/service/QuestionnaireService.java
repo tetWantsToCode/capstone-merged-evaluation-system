@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -30,9 +31,11 @@ public class QuestionnaireService {
      * Create a new questionnaire with Google Form
      */
     @Transactional
-    public Questionnaire createQuestionnaire(Long teacherId, String title, String description, 
-                                            List<QuestionnaireItem> questions, 
-                                            List<CreateQuestionnaireRequest.QuestionnaireSectionInputDto> sections) {
+    public Questionnaire createQuestionnaire(Long teacherId, String title, String description,
+                                           List<QuestionnaireItem> questions,
+                                           List<CreateQuestionnaireRequest.QuestionnaireSectionInputDto> sections,
+                                           String targetRole,
+                                           LocalDateTime deadline) {
         User teacher = userRepository.findById(teacherId)
                 .orElseThrow(() -> new RuntimeException("Teacher not found"));
 
@@ -56,7 +59,7 @@ public class QuestionnaireService {
                 section.setSectionTitle(sectionDto.getSectionTitle());
                 section.setSectionDescription(sectionDto.getSectionDescription());
                 section.setOrderIndex(sectionDto.getOrderIndex() != null ? sectionDto.getOrderIndex() : 0);
-                
+
                 // Convert items to entities
                 List<QuestionnaireItem> sectionItems = new ArrayList<>();
                 if (sectionDto.getItems() != null) {
@@ -73,7 +76,7 @@ public class QuestionnaireService {
 
             // Create Google Form with sections and page breaks
             googleForm = googleFormsService.createGoogleFormWithSections(
-                teacherId, title, description, questions != null ? questions : List.of(), sectionEntities);
+                    teacherId, title, description, questions != null ? questions : List.of(), sectionEntities);
         } else {
             // Create Google Form without sections (legacy)
             List<QuestionnaireItem> allQuestions = new ArrayList<>(questions != null ? questions : List.of());
@@ -94,6 +97,18 @@ public class QuestionnaireService {
         questionnaire.setGoogleFormUrl(googleForm.getResponderUri());
         questionnaire.setCreatedByTeacher(teacher);
         questionnaire.setIsActive(true);
+        questionnaire.setDeadline(deadline);
+
+        // Set target audience
+        if (targetRole != null) {
+            try {
+                questionnaire.setTarget(Questionnaire.QuestionnaireTarget.valueOf(targetRole.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                questionnaire.setTarget(Questionnaire.QuestionnaireTarget.ADVISER);
+            }
+        } else {
+            questionnaire.setTarget(Questionnaire.QuestionnaireTarget.ADVISER);
+        }
 
         Questionnaire savedQuestionnaire = questionnaireRepository.save(questionnaire);
 
@@ -105,9 +120,9 @@ public class QuestionnaireService {
                 section.setSectionDescription(sectionDto.getSectionDescription());
                 section.setOrderIndex(sectionDto.getOrderIndex() != null ? sectionDto.getOrderIndex() : 0);
                 section.setQuestionnaire(savedQuestionnaire);
-                
+
                 QuestionnaireSection savedSection = questionnaireSectionRepository.save(section);
-                
+
                 // Save questions in this section
                 if (sectionDto.getItems() != null && !sectionDto.getItems().isEmpty()) {
                     for (int i = 0; i < sectionDto.getItems().size(); i++) {
@@ -131,20 +146,22 @@ public class QuestionnaireService {
             }
         }
 
-        log.info("Created questionnaire {} with {} questions and {} sections", 
-            savedQuestionnaire.getId(), 
-            totalQuestionCount,
-            sections != null ? sections.size() : 0);
+        log.info("Created questionnaire {} with {} questions and {} sections",
+                savedQuestionnaire.getId(),
+                totalQuestionCount,
+                sections != null ? sections.size() : 0);
 
         return savedQuestionnaire;
     }
 
     /**
-     * Create a new questionnaire with Google Form (legacy method for backward compatibility)
+     * Create a new questionnaire with Google Form (legacy method for backward
+     * compatibility)
      */
     @Transactional
-    public Questionnaire createQuestionnaire(Long teacherId, String title, String description, List<QuestionnaireItem> questions) {
-        return createQuestionnaire(teacherId, title, description, questions, List.of());
+    public Questionnaire createQuestionnaire(Long teacherId, String title, String description,
+            List<QuestionnaireItem> questions) {
+        return createQuestionnaire(teacherId, title, description, questions, List.of(), "ADVISER", null);
     }
 
     /**
@@ -158,7 +175,17 @@ public class QuestionnaireService {
             throw new RuntimeException("Only teachers can access questionnaires");
         }
 
-        return questionnaireRepository.findByCreatedByTeacherId(teacherId);
+        List<Questionnaire> questionnaires = questionnaireRepository.findByCreatedByTeacherId(teacherId);
+        questionnaires.forEach(this::autoCloseIfExpired);
+        return questionnaires;
+    }
+
+    private void autoCloseIfExpired(Questionnaire q) {
+        if (q.getDeadline() != null && q.getDeadline().isBefore(LocalDateTime.now()) && Boolean.TRUE.equals(q.getIsActive())) {
+            q.setIsActive(false);
+            questionnaireRepository.save(q);
+            log.info("Auto-closed questionnaire {} past deadline", q.getId());
+        }
     }
 
     /**
@@ -236,7 +263,7 @@ public class QuestionnaireService {
 
         // Get all teams the adviser is assigned to
         List<Team> adviserTeams = adviser.getAdvisedTeams();
-        
+
         if (adviserTeams == null || adviserTeams.isEmpty()) {
             return new ArrayList<>();
         }
@@ -245,23 +272,25 @@ public class QuestionnaireService {
         Set<Long> classIds = adviserTeams.stream()
                 .map(team -> team.getSchoolClass().getId())
                 .collect(Collectors.toSet());
-        
+
         if (classIds.isEmpty()) {
             return new ArrayList<>();
         }
 
-        // Get questionnaires assigned to those classes
-        return questionnaireRepository.findByAssignedClassesIdInAndIsActiveTrue(new ArrayList<>(classIds));
+        // Get questionnaires assigned to those classes with target ADVISER
+        return questionnaireRepository.findByAssignedClassesIdInAndIsActiveTrueAndTarget(new ArrayList<>(classIds), Questionnaire.QuestionnaireTarget.ADVISER);
     }
 
     /**
      * Get questionnaires for a specific class
      */
     public List<Questionnaire> getQuestionnairesByClass(Long classId) {
-        SchoolClass schoolClass = schoolClassRepository.findById(classId)
-                .orElseThrow(() -> new RuntimeException("Class not found"));
-
-        return questionnaireRepository.findByAssignedClassesContainingAndIsActiveTrue(schoolClass);
+        SchoolClass schoolClass = schoolClassRepository.findById(classId).orElse(null);
+        List<Questionnaire> questionnaires = new ArrayList<>();
+        if (schoolClass != null) {
+            questionnaires.addAll(questionnaireRepository.findByAssignedClassesContainingAndIsActiveTrueAndTarget(schoolClass, Questionnaire.QuestionnaireTarget.ADVISER));
+        }
+        return questionnaires;
     }
 
     /**
@@ -333,7 +362,7 @@ public class QuestionnaireService {
      * Update questionnaire items (questions with correct answers and points)
      */
     @Transactional
-    public QuestionnaireItem updateQuestionnaireItem(Long questionnaireId, Long itemId, 
+    public QuestionnaireItem updateQuestionnaireItem(Long questionnaireId, Long itemId,
             String questionText, String correctAnswer, Integer pointsValue, Long teacherId) {
         Questionnaire questionnaire = questionnaireRepository.findById(questionnaireId)
                 .orElseThrow(() -> new RuntimeException("Questionnaire not found"));

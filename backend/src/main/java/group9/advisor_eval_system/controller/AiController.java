@@ -40,9 +40,9 @@ public class AiController {
         log.info("AI chat request userId={} role={} messageLength={} historySize={} contextType={}",
                 user.getId(), user.getRole(), messageLength, historySize, contextType);
 
-        if (user.getRole() != User.UserRole.TEACHER) {
+        if (user.getRole() != User.UserRole.TEACHER && user.getRole() != User.UserRole.STUDENT) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new ErrorResponse("Only teachers can use the AI assistant"));
+                    .body(new ErrorResponse("Only teachers and students can use the AI assistant"));
         }
 
         String reply = aiChatService.chat(user, request);

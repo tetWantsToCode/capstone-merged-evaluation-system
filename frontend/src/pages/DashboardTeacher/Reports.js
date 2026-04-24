@@ -12,7 +12,9 @@ const Reports = () => {
   const toast = useToast();
   const [questionnaires, setQuestionnaires] = useState([]);
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState(null);
+  const [selectedTeamName, setSelectedTeamName] = useState(null);
   const [evaluations, setEvaluations] = useState([]);
+  const [studentEvaluations, setStudentEvaluations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -58,9 +60,20 @@ const Reports = () => {
   const viewQuestionnaireEvaluations = async (questionnaire) => {
     try {
       setSelectedQuestionnaire(questionnaire);
+      setSelectedTeamName(null); // Reset team selection
       setLoading(true);
-      const data = await teacherReportAPI.getQuestionnaireEvaluations(questionnaire.id);
-      setEvaluations(data);
+      
+      // Fetch both types of evaluations in parallel — use allSettled so one failure doesn't block the other
+      const [adviserResult, studentResult] = await Promise.allSettled([
+        teacherReportAPI.getQuestionnaireEvaluations(questionnaire.id),
+        teacherReportAPI.getStudentQuestionnaireEvaluations(questionnaire.id)
+      ]);
+      
+      setEvaluations(adviserResult.status === 'fulfilled' ? adviserResult.value : []);
+      setStudentEvaluations(studentResult.status === 'fulfilled' ? studentResult.value : []);
+      if (adviserResult.status === 'rejected' && studentResult.status === 'rejected') {
+        setError('Failed to load evaluations: ' + (adviserResult.reason?.message || adviserResult.reason));
+      }
     } catch (err) {
       setError("Failed to load evaluations: " + err.message);
     } finally {
@@ -70,11 +83,21 @@ const Reports = () => {
 
   const backToQuestionnaires = () => {
     setSelectedQuestionnaire(null);
+    setSelectedTeamName(null);
     setEvaluations([]);
+    setStudentEvaluations([]);
+  };
+
+  const backToTeams = () => {
+    setSelectedTeamName(null);
   };
 
   const viewEvaluationDetails = (evaluationId) => {
     navigate(`/teacher/reports/evaluation/${evaluationId}`);
+  };
+
+  const viewStudentEvaluationDetails = (evaluationId) => {
+    navigate(`/teacher/reports/student-evaluation/${evaluationId}`);
   };
 
   const sendAiMessage = async () => {
@@ -105,33 +128,27 @@ const Reports = () => {
           .filter(Boolean)
           .join('\n');
       }
-      const total = evaluations.length;
-      const submitted = evaluations.filter((e) => e.status === 'SUBMITTED').length;
+
+      const currentAdviserEvals = selectedTeamName 
+        ? evaluations.filter(e => e.teamName === selectedTeamName)
+        : evaluations;
+      
+      const currentStudentEvals = selectedTeamName 
+        ? studentEvaluations.filter(e => e.teamName === selectedTeamName)
+        : studentEvaluations;
+
+      const total = currentAdviserEvals.length + currentStudentEvals.length;
+      const submitted = currentAdviserEvals.filter((e) => e.status === 'SUBMITTED').length + 
+                       currentStudentEvals.filter(e => e.status === 'SUBMITTED').length;
+      
       const inProgress = total - submitted;
       const progressRate = total > 0 ? ((submitted / total) * 100).toFixed(1) : '0.0';
-      const latestSubmission = evaluations
-        .filter((e) => e.submittedAt)
-        .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0];
-
-      const recentTeams = evaluations
-        .slice(0, 20)
-        .map((e) => `${e.teamName || 'Unknown team'}: ${e.status || 'UNKNOWN'}`)
-        .join('\n');
-
-      const pendingTeams = evaluations
-        .filter((e) => e.status !== 'SUBMITTED')
-        .slice(0, 20)
-        .map((e) => e.teamName || 'Unknown team')
-        .join(', ');
 
       return [
         `Selected questionnaire: ${selectedQuestionnaire.title}`,
-        selectedQuestionnaire.description ? `Description: ${selectedQuestionnaire.description}` : '',
+        selectedTeamName ? `Filtered by Team: ${selectedTeamName}` : `Overview for all teams`,
         `Evaluations summary: total=${total}, submitted=${submitted}, in_progress=${inProgress}`,
         `Progress rate: ${progressRate}%`,
-        latestSubmission ? `Latest submission: ${latestSubmission.teamName || 'Unknown team'} at ${new Date(latestSubmission.submittedAt).toLocaleString()}` : '',
-        pendingTeams ? `Pending teams: ${pendingTeams}` : 'Pending teams: none',
-        recentTeams ? `Sample teams/status (up to 20):\n${recentTeams}` : '',
       ]
         .filter(Boolean)
         .join('\n');
@@ -197,6 +214,9 @@ const Reports = () => {
                   <tr>
                     <th>Questionnaire Title</th>
                     <th>Description</th>
+                    <th>Target</th>
+                    <th>Deadline</th>
+                    <th>Status</th>
                     <th>Created Date</th>
                     <th>Action</th>
                   </tr>
@@ -206,13 +226,37 @@ const Reports = () => {
                     <tr key={q.id}>
                       <td>{q.title}</td>
                       <td>{q.description || "N/A"}</td>
+                      <td>
+                        <span style={{
+                          padding: '3px 10px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          background: q.target === 'ADVISER' ? '#cce5ff' : '#fff3cd',
+                          color: q.target === 'ADVISER' ? '#004085' : '#856404',
+                        }}>
+                          {q.target === 'ADVISER' ? 'Adviser' : 'Student'}
+                        </span>
+                      </td>
+                      <td>
+                        {q.deadline
+                          ? new Date(q.deadline).toLocaleString()
+                          : <span style={{ color: 'var(--dtm-muted)', fontSize: '11px' }}>No deadline</span>}
+                      </td>
+                      <td>
+                        {q.isActive === false
+                          ? <span style={{ color: '#dc3545', fontWeight: 600, fontSize: '11px' }}>Closed</span>
+                          : q.deadline && new Date(q.deadline) < new Date()
+                            ? <span style={{ color: '#dc3545', fontWeight: 600, fontSize: '11px' }}>Expired</span>
+                            : <span style={{ color: '#28a745', fontWeight: 600, fontSize: '11px' }}>Active</span>}
+                      </td>
                       <td>{new Date(q.createdAt).toLocaleDateString()}</td>
                       <td>
                         <button
                           className="btn"
                           onClick={() => viewQuestionnaireEvaluations(q)}
                         >
-                          View Evaluations
+                          View Reports
                         </button>
                       </td>
                     </tr>
@@ -221,7 +265,7 @@ const Reports = () => {
               </table>
             )}
           </div>
-        ) : (
+        ) : !selectedTeamName ? (
           <div className="section">
             <div style={{ marginBottom: "20px" }}>
               <button className="btn-secondary" onClick={backToQuestionnaires}>
@@ -229,52 +273,230 @@ const Reports = () => {
               </button>
             </div>
 
-            <h2>{selectedQuestionnaire.title} - Evaluations</h2>
+            <h2>{selectedQuestionnaire.title} - Select a Team</h2>
+            
+            {loading ? (
+              <p>Loading teams...</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginTop: '20px' }}>
+                {Array.from(new Set([
+                  ...evaluations.map(e => e.teamName),
+                  ...studentEvaluations.map(e => e.teamName)
+                ])).filter(Boolean).length === 0 ? (
+                  <p className="pending">No teams have data for this questionnaire yet.</p>
+                ) : (
+                  Array.from(new Set([
+                    ...evaluations.map(e => e.teamName),
+                    ...studentEvaluations.map(e => e.teamName)
+                  ])).filter(Boolean).sort().map(teamName => {
+                    const adviserCount = evaluations.filter(e => e.teamName === teamName && e.status === 'SUBMITTED').length;
+                    const studentCount = studentEvaluations.filter(e => e.teamName === teamName && e.status === 'SUBMITTED').length;
+                    const totalCount = studentEvaluations.filter(e => e.teamName === teamName).length;
+
+                    return (
+                      <div 
+                        key={teamName} 
+                        className="evaluation-response-item" 
+                        style={{ cursor: 'pointer', background: 'rgba(255,255,255,0.05)', padding: '24px', transition: 'transform 0.2s' }}
+                        onClick={() => setSelectedTeamName(teamName)}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                      >
+                        <h3 style={{ margin: '0 0 12px 0', color: 'var(--dtm-gold)' }}>{teamName}</h3>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--dtm-muted)' }}>
+                          {selectedQuestionnaire.target === 'ADVISER' ? (
+                            <p style={{ margin: '4px 0' }}>Adviser Eval: {adviserCount > 0 ? '✅ Submitted' : '🕒 Pending'}</p>
+                          ) : (
+                            <p style={{ margin: '4px 0' }}>Student Evals: {studentCount}/{totalCount} Submitted</p>
+                          )}
+                        </div>
+                        <button className="btn btn-assign" style={{ marginTop: '16px', width: '100%', fontSize: '0.85rem' }}>
+                          View Team Details
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="section">
+            <div style={{ marginBottom: "20px", display: 'flex', gap: '10px' }}>
+              <button className="btn-secondary" onClick={backToTeams}>
+                ← Back to Teams
+              </button>
+              <button className="btn-secondary" onClick={backToQuestionnaires}>
+                Back to Questionnaires
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '30px' }}>
+              <p style={{ color: 'var(--dtm-gold)', fontWeight: 600, margin: 0 }}>Questionnaire: {selectedQuestionnaire.title}</p>
+              <h2 style={{ margin: '4px 0' }}>Team: {selectedTeamName}</h2>
+            </div>
 
             {loading ? (
               <p>Loading evaluations...</p>
-            ) : evaluations.length === 0 ? (
-              <p>No evaluations submitted yet for this questionnaire.</p>
             ) : (
-              <table className="class-table">
-                <thead>
-                  <tr>
-                    <th>Team Name</th>
-                    <th>Adviser Name</th>
-                    <th>Status</th>
-                    <th>Submitted Date</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {evaluations.map((evaluation) => (
-                    <tr key={evaluation.id}>
-                      <td>{evaluation.teamName}</td>
-                      <td>{evaluation.adviserName}</td>
-                      <td>
-                        <span className={evaluation.status === "SUBMITTED" ? "completed" : "pending"}>
-                          {evaluation.status === "SUBMITTED" ? "Submitted" : "In Progress"}
-                        </span>
-                      </td>
-                      <td>
-                        {evaluation.submittedAt
-                          ? new Date(evaluation.submittedAt).toLocaleDateString()
-                          : "Not submitted"}
-                      </td>
-                      <td>
-                        {evaluation.status === "SUBMITTED" && (
-                          <button
-                            className="btn"
-                            onClick={() => viewEvaluationDetails(evaluation.id)}
-                          >
-                            View Details
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <>
+                {selectedQuestionnaire.target === 'ADVISER' ? (
+                  <div style={{ marginBottom: '40px' }}>
+                    <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>Adviser Evaluation</h3>
+                    {evaluations.filter(e => e.teamName === selectedTeamName).length === 0 ? (
+                      <p className="pending">No adviser evaluation for this team yet.</p>
+                    ) : (
+                      <table className="class-table">
+                        <thead>
+                          <tr>
+                            <th>Adviser Name</th>
+                            <th>Status</th>
+                            <th>Submitted Date</th>
+                            <th>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {evaluations.filter(e => e.teamName === selectedTeamName).map((evaluation) => (
+                            <tr key={evaluation.id}>
+                              <td>{evaluation.adviserName}</td>
+                              <td>
+                                <span className={evaluation.status === "SUBMITTED" ? "completed" : "pending"}>
+                                  {evaluation.status === "SUBMITTED" ? "Submitted" : "In Progress"}
+                                </span>
+                              </td>
+                              <td>
+                                {evaluation.submittedAt
+                                  ? new Date(evaluation.submittedAt).toLocaleDateString()
+                                  : "Not submitted"}
+                              </td>
+                              <td>
+                                {evaluation.status === "SUBMITTED" && (
+                                  <button
+                                    className="btn"
+                                    onClick={() => viewEvaluationDetails(evaluation.id)}
+                                  >
+                                    View Details
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ marginBottom: '40px' }}>
+                      <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>Student Self-Evaluations</h3>
+                      {studentEvaluations.filter(e => e.teamName === selectedTeamName && e.isSelf).length === 0 ? (
+                        <p className="pending">No student self-evaluations for this team yet.</p>
+                      ) : (
+                        <table className="class-table">
+                          <thead>
+                            <tr>
+                              <th>Student Name</th>
+                              <th>Status</th>
+                              <th>Answers</th>
+                              <th>Avg Score</th>
+                              <th>Submitted Date</th>
+                              <th>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {studentEvaluations.filter(e => e.teamName === selectedTeamName && e.isSelf).map((evaluation) => (
+                              <tr key={evaluation.id}>
+                                <td>{evaluation.evaluatorName}</td>
+                                <td>
+                                  <span className={evaluation.status === "SUBMITTED" ? "completed" : "pending"}>
+                                    {evaluation.status === "SUBMITTED" ? "Submitted" : "In Progress"}
+                                  </span>
+                                </td>
+                                <td>{evaluation.scoreCount}</td>
+                                <td>
+                                  {evaluation.averageScore !== null && evaluation.averageScore !== undefined 
+                                    ? <strong style={{color: 'var(--dtm-gold)'}}>{evaluation.averageScore}</strong> 
+                                    : "N/A"}
+                                </td>
+                                <td>
+                                  {evaluation.submittedAt
+                                    ? new Date(evaluation.submittedAt).toLocaleDateString()
+                                    : "Not submitted"}
+                                </td>
+                                <td>
+                                  {evaluation.status === "SUBMITTED" && (
+                                    <button
+                                      className="btn"
+                                      onClick={() => viewStudentEvaluationDetails(evaluation.id)}
+                                    >
+                                      View Details
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>Student Peer Evaluations</h3>
+                      {studentEvaluations.filter(e => e.teamName === selectedTeamName && !e.isSelf).length === 0 ? (
+                        <p className="pending">No peer-to-peer evaluations for this team yet.</p>
+                      ) : (
+                        <table className="class-table">
+                          <thead>
+                            <tr>
+                              <th>Evaluator</th>
+                              <th>Evaluatee (Peer)</th>
+                              <th>Status</th>
+                              <th>Answers</th>
+                              <th>Avg Score</th>
+                              <th>Submitted Date</th>
+                              <th>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {studentEvaluations.filter(e => e.teamName === selectedTeamName && !e.isSelf).map((evaluation) => (
+                              <tr key={evaluation.id}>
+                                <td>{evaluation.evaluatorName}</td>
+                                <td>{evaluation.evaluateeName}</td>
+                                <td>
+                                  <span className={evaluation.status === "SUBMITTED" ? "completed" : "pending"}>
+                                    {evaluation.status === "SUBMITTED" ? "Submitted" : "In Progress"}
+                                  </span>
+                                </td>
+                                <td>{evaluation.scoreCount}</td>
+                                <td>
+                                  {evaluation.averageScore !== null && evaluation.averageScore !== undefined 
+                                    ? <strong style={{color: 'var(--dtm-gold)'}}>{evaluation.averageScore}</strong> 
+                                    : "N/A"}
+                                </td>
+                                <td>
+                                  {evaluation.submittedAt
+                                    ? new Date(evaluation.submittedAt).toLocaleDateString()
+                                    : "Not submitted"}
+                                </td>
+                                <td>
+                                  {evaluation.status === "SUBMITTED" && (
+                                    <button
+                                      className="btn"
+                                      onClick={() => viewStudentEvaluationDetails(evaluation.id)}
+                                    >
+                                      View Details
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </>
+                )}
+              </>
             )}
           </div>
         )}

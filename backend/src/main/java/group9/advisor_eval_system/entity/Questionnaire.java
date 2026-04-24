@@ -19,40 +19,52 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Questionnaire {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @NotBlank
     @Column(nullable = false)
     private String title;
-    
+
     @Column(length = 2000)
     private String description;
-    
+
     @Column(nullable = false, unique = true)
     private String googleFormId; // Google Forms API ID
-    
+
     @Column(nullable = true)
     private String googleFormUrl;
-    
+
     @Column(nullable = false)
     private Boolean isActive = true;
-    
+
     @Column(nullable = false)
     private Boolean isLocked = false; // Lock after first evaluation submission
-    
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private QuestionnaireTarget target = QuestionnaireTarget.ADVISER;
+
     @Column(nullable = true)
     private LocalDateTime lockedAt; // When questionnaire was locked
-    
+
+    @Column(nullable = true)
+    private LocalDateTime deadline; // Auto-closes form when this datetime is reached
+
+    public enum QuestionnaireTarget {
+        ADVISER,
+        STUDENT
+    }
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
-    
+
     @UpdateTimestamp
     private LocalDateTime updatedAt;
-    
+
     // Relationships
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_teacher_id", nullable = false)
@@ -62,11 +74,7 @@ public class Questionnaire {
     private User createdByTeacher;
 
     @ManyToMany
-    @JoinTable(
-        name = "class_questionnaires",
-        joinColumns = @JoinColumn(name = "questionnaire_id"),
-        inverseJoinColumns = @JoinColumn(name = "class_id")
-    )
+    @JoinTable(name = "class_questionnaires", joinColumns = @JoinColumn(name = "questionnaire_id"), inverseJoinColumns = @JoinColumn(name = "class_id"))
     @JsonIgnore
     @lombok.ToString.Exclude
     @lombok.EqualsAndHashCode.Exclude

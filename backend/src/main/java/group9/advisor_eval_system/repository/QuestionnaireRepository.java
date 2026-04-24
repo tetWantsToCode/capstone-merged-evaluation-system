@@ -19,14 +19,22 @@ public interface QuestionnaireRepository extends JpaRepository<Questionnaire, Lo
     List<Questionnaire> findByIsActiveTrue();
     
     List<Questionnaire> findByCreatedByTeacherId(Long teacherId);
-
+    
     List<Questionnaire> findByCreatedByTeacherIdAndIsActiveTrue(Long teacherId);
+    
+    List<Questionnaire> findByCreatedByTeacherIdAndTarget(Long teacherId, Questionnaire.QuestionnaireTarget target);
     
     @Query("SELECT q FROM Questionnaire q JOIN q.assignedClasses c WHERE c.id IN :classIds AND q.isActive = true")
     List<Questionnaire> findByAssignedClassesIdInAndIsActiveTrue(@Param("classIds") List<Long> classIds);
+
+    @Query("SELECT q FROM Questionnaire q JOIN q.assignedClasses c WHERE c.id IN :classIds AND q.isActive = true AND q.target = :target")
+    List<Questionnaire> findByAssignedClassesIdInAndIsActiveTrueAndTarget(@Param("classIds") List<Long> classIds, @Param("target") Questionnaire.QuestionnaireTarget target);
     
     @Query("SELECT q FROM Questionnaire q JOIN q.assignedClasses c WHERE c = :schoolClass AND q.isActive = true")
     List<Questionnaire> findByAssignedClassesContainingAndIsActiveTrue(@Param("schoolClass") SchoolClass schoolClass);
+
+    @Query("SELECT q FROM Questionnaire q JOIN q.assignedClasses c WHERE c = :schoolClass AND q.isActive = true AND q.target = :target")
+    List<Questionnaire> findByAssignedClassesContainingAndIsActiveTrueAndTarget(@Param("schoolClass") SchoolClass schoolClass, @Param("target") Questionnaire.QuestionnaireTarget target);
 
     @Query("SELECT q FROM Questionnaire q JOIN q.assignedClasses c WHERE c = :schoolClass")
     List<Questionnaire> findByAssignedClassesContaining(@Param("schoolClass") SchoolClass schoolClass);

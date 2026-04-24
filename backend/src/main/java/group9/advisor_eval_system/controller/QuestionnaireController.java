@@ -58,7 +58,9 @@ public class QuestionnaireController {
                     request.getTitle(),
                     request.getDescription(),
                     questions,
-                    request.getSections() != null ? request.getSections() : List.of());
+                    request.getSections() != null ? request.getSections() : List.of(),
+                    request.getTarget(),
+                    request.getDeadline());
 
             QuestionnaireResponse response = QuestionnaireResponse.fromEntity(questionnaire);
             // Set the actual question count from database
@@ -177,7 +179,8 @@ public class QuestionnaireController {
                         .body(new ErrorResponse("Only teachers can access this endpoint"));
             }
 
-            List<Questionnaire> questionnaires = questionnaireService.getQuestionnairesByClassForTeacher(classId, user.getId());
+            List<Questionnaire> questionnaires = questionnaireService.getQuestionnairesByClassForTeacher(classId,
+                    user.getId());
             List<QuestionnaireResponse> responses = questionnaires.stream()
                     .map(q -> {
                         QuestionnaireResponse response = QuestionnaireResponse.fromEntity(q);
@@ -378,8 +381,8 @@ public class QuestionnaireController {
 
             String questionText = (String) request.get("questionText");
             String correctAnswer = (String) request.get("correctAnswer");
-            Integer pointsValue = request.get("pointsValue") != null ? 
-                ((Number) request.get("pointsValue")).intValue() : null;
+            Integer pointsValue = request.get("pointsValue") != null ? ((Number) request.get("pointsValue")).intValue()
+                    : null;
 
             QuestionnaireItem updatedItem = questionnaireService.updateQuestionnaireItem(
                     questionnaireId,
@@ -393,8 +396,7 @@ public class QuestionnaireController {
                     "id", updatedItem.getId(),
                     "questionText", updatedItem.getQuestionText(),
                     "correctAnswer", updatedItem.getCorrectAnswer(),
-                    "pointsValue", updatedItem.getPointsValue()
-            ));
+                    "pointsValue", updatedItem.getPointsValue()));
 
         } catch (Exception e) {
             log.error("Error updating questionnaire item", e);
@@ -415,8 +417,8 @@ public class QuestionnaireController {
             Questionnaire questionnaire = questionnaireService.getQuestionnaireById(id);
 
             // Only teacher who created it can check lock status
-            if (user.getRole() == User.UserRole.TEACHER 
-                && !questionnaire.getCreatedByTeacher().getId().equals(user.getId())) {
+            if (user.getRole() == User.UserRole.TEACHER
+                    && !questionnaire.getCreatedByTeacher().getId().equals(user.getId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(new ErrorResponse("You can only view lock status for your own questionnaires"));
             }
@@ -424,8 +426,7 @@ public class QuestionnaireController {
             return ResponseEntity.ok(Map.of(
                     "questionnaireId", id,
                     "isLocked", questionnaire.getIsLocked() != null && questionnaire.getIsLocked(),
-                    "lockedAt", questionnaire.getLockedAt()
-            ));
+                    "lockedAt", questionnaire.getLockedAt()));
 
         } catch (Exception e) {
             log.error("Error getting lock status", e);

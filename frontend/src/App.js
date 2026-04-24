@@ -10,21 +10,21 @@ import Questionnaires from './pages/DashboardTeacher/Questionnaires';
 import CreateQuestionnaire from './pages/DashboardTeacher/CreateQuestionnaire';
 import Reports from './pages/DashboardTeacher/Reports';
 import EvaluationDetail from './pages/DashboardTeacher/EvaluationDetail';
+import StudentEvaluationDetail from './pages/DashboardTeacher/StudentEvaluationDetail';
 import Students from './pages/DashboardTeacher/Students';
 import Advisers from './pages/DashboardTeacher/Advisers';
 import UserManagement from './pages/DashboardTeacher/UserManagement';
-
-// Student Pages
-import StudentDashboard from './pages/DashboardStudent/StudentDashboard';
-import StudentEvaluationForm from './pages/DashboardStudent/StudentEvaluationForm';
-import ThankYou from './pages/ThankYou';
 
 // Adviser Pages
 import Adviser from './pages/DashboardAdviser/Adviser';
 import Evaluations from './pages/DashboardAdviser/Evaluations';
 import Completed from './pages/DashboardAdviser/Completed';
 import EvaluateForm from './pages/DashboardAdviser/EvaluateForm';
-import AdviserEvaluations from './pages/DashboardAdviser/AdviserEvaluations';
+
+// Student Pages
+import StudentDashboard from './pages/DashboardStudent/StudentDashboard';
+import StudentEvaluateForm from './pages/DashboardStudent/StudentEvaluateForm';
+import MyTeam from './pages/DashboardStudent/MyTeam';
 
 // Profile
 import Profile from './pages/Profile/Profile';
@@ -71,6 +71,12 @@ function App() {
           </ProtectedRoute>
         } />
 
+        <Route path="/teacher/reports/student-evaluation/:evaluationId" element={
+          <ProtectedRoute allowedRoles={['TEACHER']}>
+            <StudentEvaluationDetail />
+          </ProtectedRoute>
+        } />
+
         <Route path="/teacher/students" element={
           <ProtectedRoute allowedRoles={['TEACHER']}>
             <Students />
@@ -86,25 +92,6 @@ function App() {
         <Route path="/teacher/user-management" element={
           <ProtectedRoute allowedRoles={['TEACHER']}>
             <UserManagement />
-          </ProtectedRoute>
-        } />
-
-        {/* Student */}
-        <Route path="/student/dashboard" element={
-          <ProtectedRoute allowedRoles={['STUDENT']}>
-            <StudentDashboard />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/student/evaluate/:activityId" element={
-          <ProtectedRoute allowedRoles={['STUDENT']}>
-            <StudentEvaluationForm />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/thank-you" element={
-          <ProtectedRoute allowedRoles={['STUDENT']}>
-            <ThankYou />
           </ProtectedRoute>
         } />
 
@@ -133,15 +120,28 @@ function App() {
           </ProtectedRoute>
         } />
 
-        <Route path="/adviser/evaluations-list" element={
-          <ProtectedRoute allowedRoles={['ADVISER']}>
-            <AdviserEvaluations />
+        {/* Student */}
+        <Route path="/student/dashboard" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <StudentDashboard />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/student/evaluate/:questionnaireId" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <StudentEvaluateForm />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/student/team" element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <MyTeam />
           </ProtectedRoute>
         } />
 
         {/* Profile */}
         <Route path="/profile" element={
-          <ProtectedRoute allowedRoles={['TEACHER', 'ADVISER', 'STUDENT']}>
+          <ProtectedRoute allowedRoles={['TEACHER', 'ADVISER']}>
             <Profile />
           </ProtectedRoute>
         } />

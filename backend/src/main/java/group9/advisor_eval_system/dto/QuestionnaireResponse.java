@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 @AllArgsConstructor
 public class QuestionnaireResponse {
-    
+
     private Long id;
     private String title;
     private String description;
@@ -31,9 +31,11 @@ public class QuestionnaireResponse {
     private List<Long> assignedClassIds;
     private List<String> assignedClassNames;
     private Integer questionCount;
+    private String target;
+    private LocalDateTime deadline;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    
+
     public static QuestionnaireResponse fromEntity(Questionnaire questionnaire) {
         QuestionnaireResponse response = new QuestionnaireResponse();
         response.setId(questionnaire.getId());
@@ -44,41 +46,40 @@ public class QuestionnaireResponse {
         response.setIsActive(questionnaire.getIsActive());
         response.setIsLocked(questionnaire.getIsLocked() != null && questionnaire.getIsLocked());
         response.setLockedAt(questionnaire.getLockedAt());
-        
+        response.setTarget(questionnaire.getTarget() != null ? questionnaire.getTarget().name() : null);
+
         if (questionnaire.getCreatedByTeacher() != null) {
             response.setCreatedByTeacherId(questionnaire.getCreatedByTeacher().getId());
             response.setCreatedByTeacherName(
-                questionnaire.getCreatedByTeacher().getFirstName() + " " + 
-                questionnaire.getCreatedByTeacher().getLastName()
-            );
+                    questionnaire.getCreatedByTeacher().getFirstName() + " " +
+                            questionnaire.getCreatedByTeacher().getLastName());
         }
-        
+
         try {
             if (questionnaire.getAssignedClasses() != null) {
                 // Create a defensive copy to avoid concurrent modification
                 Set<SchoolClass> classesCopy = new HashSet<>(questionnaire.getAssignedClasses());
                 response.setAssignedClassIds(
-                    classesCopy.stream()
-                        .map(SchoolClass::getId)
-                        .collect(Collectors.toList())
-                );
+                        classesCopy.stream()
+                                .map(SchoolClass::getId)
+                                .collect(Collectors.toList()));
                 response.setAssignedClassNames(
-                    classesCopy.stream()
-                        .map(SchoolClass::getName)
-                        .collect(Collectors.toList())
-                );
+                        classesCopy.stream()
+                                .map(SchoolClass::getName)
+                                .collect(Collectors.toList()));
             }
         } catch (Exception e) {
             response.setAssignedClassIds(new ArrayList<>());
             response.setAssignedClassNames(new ArrayList<>());
         }
-        
+
         // Note: questionCount is set by the controller using direct database query
         response.setQuestionCount(0);
-        
+
+        response.setDeadline(questionnaire.getDeadline());
         response.setCreatedAt(questionnaire.getCreatedAt());
         response.setUpdatedAt(questionnaire.getUpdatedAt());
-        
+
         return response;
     }
 }
