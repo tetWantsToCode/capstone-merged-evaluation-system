@@ -60,7 +60,7 @@ public class QuestionnaireController {
                     questions,
                     request.getSections() != null ? request.getSections() : List.of(),
                     request.getTarget(),
-                    request.getDeadline());
+                    request.getDeadlineAt());
 
             QuestionnaireResponse response = QuestionnaireResponse.fromEntity(questionnaire);
             // Set the actual question count from database

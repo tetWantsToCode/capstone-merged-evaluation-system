@@ -51,7 +51,7 @@ public class Questionnaire {
     private LocalDateTime lockedAt; // When questionnaire was locked
 
     @Column(nullable = true)
-    private LocalDateTime deadline; // Auto-closes form when this datetime is reached
+    private LocalDateTime deadlineAt; // Optional close time
 
     public enum QuestionnaireTarget {
         ADVISER,

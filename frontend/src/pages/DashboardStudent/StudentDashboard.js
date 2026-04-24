@@ -47,9 +47,24 @@ const StudentDashboard = () => {
     navigate(`/student/evaluate/${q.id}`);
   };
 
+  const formatDeadline = (dateTimeString) => {
+    if (!dateTimeString) return 'No deadline';
+    return new Date(dateTimeString).toLocaleString([], {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   const statusCounts = useMemo(() => {
-    const counts = { ALL: questionnaires.length, READY: 0, IN_PROGRESS: 0, SUBMITTED: 0 };
+    const counts = { ALL: questionnaires.length, READY: 0, IN_PROGRESS: 0, SUBMITTED: 0, MISSED: 0 };
     questionnaires.forEach(q => {
+      if (q.isMissed) {
+        counts.MISSED++;
+        return;
+      }
       const isComplete = q.peerTasks?.every(t => t.status === 'SUBMITTED');
       const isStarted = q.peerTasks?.some(t => t.status === 'SUBMITTED');
       if (isComplete) counts.SUBMITTED++;
@@ -64,6 +79,12 @@ const StudentDashboard = () => {
 
   const filteredQuestionnaires = useMemo(() => {
     return questionnaires.filter(q => {
+      if (q.isMissed) {
+        if (statusFilter !== 'ALL' && statusFilter !== 'MISSED') return false;
+        if (searchTerm && !q.title.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+        return true;
+      }
+
       const isComplete = q.peerTasks?.every(t => t.status === 'SUBMITTED');
       const isStarted = q.peerTasks?.some(t => t.status === 'SUBMITTED');
       const status = isComplete ? 'SUBMITTED' : (isStarted ? 'IN_PROGRESS' : 'READY');
@@ -94,6 +115,7 @@ const StudentDashboard = () => {
             <span><strong>{statusCounts.ALL}</strong> total</span>
             <span><strong>{statusCounts.IN_PROGRESS}</strong> in progress</span>
             <span><strong>{statusCounts.SUBMITTED}</strong> completed</span>
+            <span><strong>{statusCounts.MISSED}</strong> missed</span>
           </div>
         </section>
 
@@ -104,6 +126,7 @@ const StudentDashboard = () => {
               { key: "READY", label: "Ready" },
               { key: "IN_PROGRESS", label: "In Progress" },
               { key: "SUBMITTED", label: "Completed" },
+              { key: "MISSED", label: "Missed" },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -144,11 +167,13 @@ const StudentDashboard = () => {
                   <th>Status</th>
                   <th>Progress</th>
                   <th>Assigned Date</th>
+                  <th>Deadline</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredQuestionnaires.map((q, idx) => {
+                  const isMissed = Boolean(q.isMissed);
                   const completed = q.peerTasks?.filter(t => t.status === 'SUBMITTED').length || 0;
                   const total = q.peerTasks?.length || 0;
                   const isComplete = completed === total && total > 0;
@@ -161,7 +186,9 @@ const StudentDashboard = () => {
                       <td><strong>{q.title}</strong></td>
                       <td>{q.description || "No description"}</td>
                       <td>
-                        {isComplete ? (
+                        {isMissed ? (
+                          <span className="status-badge status-inactive">Missed</span>
+                        ) : isComplete ? (
                           <span className="status-badge status-active">Completed</span>
                         ) : isStarted ? (
                           <span className="status-badge adviser-status-progress">In Progress</span>
@@ -180,8 +207,15 @@ const StudentDashboard = () => {
                         </div>
                       </td>
                       <td>{new Date(q.createdAt).toLocaleDateString()}</td>
+                      <td style={{ whiteSpace: 'nowrap', color: q.deadlineAt ? 'inherit' : 'var(--dtm-muted)' }}>
+                        {formatDeadline(q.deadlineAt)}
+                      </td>
                       <td>
-                        {isComplete ? (
+                        {isMissed ? (
+                          <span style={{ color: '#f87171', fontSize: '0.85rem', fontWeight: 600 }}>
+                            Deadline passed
+                          </span>
+                        ) : isComplete ? (
                           <span style={{ color: '#4ade80', fontSize: '0.85rem', fontWeight: 600 }}>Submitted ✓</span>
                         ) : (
                           <button 

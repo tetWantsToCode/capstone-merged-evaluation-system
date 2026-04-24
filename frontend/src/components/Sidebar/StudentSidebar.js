@@ -50,7 +50,7 @@ const StudentSidebar = () => {
 
   const menuItems = [
     { label: "Dashboard", icon: "⌂", path: "/student/dashboard" },
-    { label: "My Team", icon: "👥", path: "/student/team" }
+    { label: "My Team", icon: "☍", path: "/student/team" }
   ];
 
   return (

@@ -16,7 +16,7 @@ const CreateQuestionnaire = () => {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    deadline: "",
+    deadlineAt: "",
     questions: [],
     sections: [
       {
@@ -37,7 +37,6 @@ const CreateQuestionnaire = () => {
 
   const [newQuestion, setNewQuestion] = useState({
     questionText: "",
-    description: "",
     questionType: "NUMERIC_SCALE",
     minScore: 1,
     maxScore: 5,
@@ -100,13 +99,25 @@ const CreateQuestionnaire = () => {
       return;
     }
 
+    if (formData.deadlineAt) {
+      const deadline = new Date(formData.deadlineAt);
+      if (Number.isNaN(deadline.getTime())) {
+        toast.error('Please provide a valid deadline');
+        return;
+      }
+      if (deadline <= new Date()) {
+        toast.error('Deadline must be in the future');
+        return;
+      }
+    }
+
     try {
       toast.info('Creating questionnaire...');
-      const submissionData = {
+      const payload = {
         ...formData,
-        deadline: formData.deadline ? formData.deadline + ':00' : null
+        deadlineAt: formData.deadlineAt || null,
       };
-      await questionnaireAPI.createQuestionnaire(submissionData);
+      await questionnaireAPI.createQuestionnaire(payload);
       toast.success('Questionnaire created successfully!');
       navigate('/teacher/questionnaires');
     } catch (err) {
@@ -135,7 +146,6 @@ const CreateQuestionnaire = () => {
 
     setNewQuestion({
       questionText: "",
-      description: "",
       questionType: "NUMERIC_SCALE",
       minScore: 1,
       maxScore: 5,
@@ -421,15 +431,14 @@ const CreateQuestionnaire = () => {
                 <label>Deadline (Optional)</label>
                 <input
                   type="datetime-local"
-                  value={formData.deadline}
-                  onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                  value={formData.deadlineAt}
+                  min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                  onChange={(e) => setFormData({ ...formData, deadlineAt: e.target.value })}
                   style={{ fontSize: '11px' }}
                 />
-                {formData.deadline && (
-                  <small style={{ color: 'var(--dtm-muted)', fontSize: '10px' }}>
-                    Form will auto-close on {new Date(formData.deadline).toLocaleString()}
-                  </small>
-                )}
+                <small style={{ color: 'var(--dtm-muted)', fontSize: '10px' }}>
+                  Leave blank for no deadline. When reached, this questionnaire closes automatically.
+                </small>
               </div>
 
               {/* Questions Display */}
@@ -441,9 +450,6 @@ const CreateQuestionnaire = () => {
                   <div className="add-question-box">
                     <div className="form-group">
                       <label>Question Text *</label>
-                      <small style={{ color: 'var(--dtm-muted)', fontSize: '10px', display: 'block', marginBottom: '4px' }}>
-                        Add an optional description below the question for extra context.
-                      </small>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1 }}>
                           <input
@@ -506,17 +512,6 @@ const CreateQuestionnaire = () => {
                           </button>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="form-group" style={{ marginBottom: '6px' }}>
-                      <label style={{ marginBottom: '3px' }}>Description (Optional)</label>
-                      <input
-                        type="text"
-                        value={newQuestion.description}
-                        onChange={(e) => setNewQuestion({ ...newQuestion, description: e.target.value })}
-                        placeholder="e.g., Rate from 1 (poor) to 5 (excellent)"
-                        style={{ fontSize: '11px', width: '100%' }}
-                      />
                     </div>
 
                     {(newQuestion.questionType === 'NUMERIC_SCALE' || newQuestion.questionType === 'RATING') && (

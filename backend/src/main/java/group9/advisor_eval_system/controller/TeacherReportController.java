@@ -63,8 +63,6 @@ public class TeacherReportController {
                         map.put("title", q.getTitle());
                         map.put("description", q.getDescription() != null ? q.getDescription() : "");
                         map.put("target", q.getTarget() != null ? q.getTarget().toString() : "ADVISER");
-                        map.put("deadline", q.getDeadline() != null ? q.getDeadline().toString() : null);
-                        map.put("isActive", q.getIsActive());
                         map.put("createdAt", q.getCreatedAt().toString());
                         return map;
                     })
@@ -148,44 +146,36 @@ public class TeacherReportController {
                 currentMap.put("evaluatorName", e.getStudent().getFirstName() + " " + e.getStudent().getLastName());
                 
                 String teamName = "No Team";
-                try {
-                    if (e.getStudent().getTeamStudents() != null && !e.getStudent().getTeamStudents().isEmpty()) {
-                        teamName = e.getStudent().getTeamStudents().get(0).getTeam().getName();
-                    }
-                } catch (Exception ignored) {}
+                if (e.getStudent().getTeamStudents() != null && !e.getStudent().getTeamStudents().isEmpty()) {
+                    teamName = e.getStudent().getTeamStudents().get(0).getTeam().getName();
+                }
                 currentMap.put("teamName", teamName);
 
                 currentMap.put("isSelf", isSelf);
                 
                 currentMap.put("evaluateeName", e.getEvaluatee() != null ? e.getEvaluatee().getFirstName() + " " + e.getEvaluatee().getLastName() : "Self");
-                currentMap.put("status", e.getStatus().name());
+                currentMap.put("status", e.getStatus());
                 
                 // For sorting/dedup
                 currentMap.put("_statusOrder", e.getStatus() == StudentEvaluation.EvaluationStatus.SUBMITTED ? 0 : 1);
                 currentMap.put("_time", e.getSubmittedAt() != null ? e.getSubmittedAt() : (e.getCreatedAt() != null ? e.getCreatedAt() : java.time.LocalDateTime.MIN));
                 
                 currentMap.put("submittedAt", e.getSubmittedAt());
-                int scoreCount = 0;
-                try { scoreCount = e.getScores() != null ? e.getScores().size() : 0; } catch (Exception ignored) {}
-                currentMap.put("scoreCount", scoreCount);
+                currentMap.put("scoreCount", e.getScores() != null ? e.getScores().size() : 0);
 
                 // Calculate Average Score
-                try {
-                    if (e.getScores() != null && !e.getScores().isEmpty()) {
-                        List<Double> scores = e.getScores().stream()
-                                .map(s -> s.getNumericScore())
-                                .filter(v -> v != null)
-                                .collect(Collectors.toList());
-                        if (!scores.isEmpty()) {
-                            double avg = scores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
-                            currentMap.put("averageScore", Math.round(avg * 100.0) / 100.0);
-                        } else {
-                            currentMap.put("averageScore", null);
-                        }
+                if (e.getScores() != null && !e.getScores().isEmpty()) {
+                    List<Double> scores = e.getScores().stream()
+                            .map(s -> s.getNumericScore())
+                            .filter(v -> v != null)
+                            .collect(Collectors.toList());
+                    if (!scores.isEmpty()) {
+                        double avg = scores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                        currentMap.put("averageScore", Math.round(avg * 100.0) / 100.0);
                     } else {
                         currentMap.put("averageScore", null);
                     }
-                } catch (Exception ignored) {
+                } else {
                     currentMap.put("averageScore", null);
                 }
 
@@ -234,7 +224,7 @@ public class TeacherReportController {
                         .body(Map.of("error", "Only teachers can access reports"));
             }
 
-            StudentEvaluation evaluation = studentEvaluationRepository.findById(evaluationId)
+            StudentEvaluation evaluation = studentEvaluationRepository.findByIdWithDetails(evaluationId)
                     .orElseThrow(() -> new RuntimeException("Student evaluation not found"));
 
             if (!evaluation.getQuestionnaire().getCreatedByTeacher().getId().equals(teacherId)) {

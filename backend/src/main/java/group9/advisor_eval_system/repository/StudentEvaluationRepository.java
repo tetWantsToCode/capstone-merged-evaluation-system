@@ -24,4 +24,20 @@ public interface StudentEvaluationRepository extends JpaRepository<StudentEvalua
     List<StudentEvaluation> findByQuestionnaireIdAndEvaluateeId(Long questionnaireId, Long evaluateeId);
 
     List<StudentEvaluation> findByEvaluateeIdAndStatus(Long evaluateeId, StudentEvaluation.EvaluationStatus status);
+
+    @Query("""
+            SELECT DISTINCT e FROM StudentEvaluation e
+            LEFT JOIN FETCH e.scores s
+            LEFT JOIN FETCH s.questionnaireItem qi
+            LEFT JOIN FETCH e.questionnaire q
+            LEFT JOIN FETCH q.items qi2
+            LEFT JOIN FETCH q.sections qs
+            LEFT JOIN FETCH qs.items qsi
+            LEFT JOIN FETCH e.student st
+            LEFT JOIN FETCH st.teamStudents ts
+            LEFT JOIN FETCH ts.team t
+            LEFT JOIN FETCH e.evaluatee ev
+            WHERE e.id = :id
+            """)
+    Optional<StudentEvaluation> findByIdWithDetails(@Param("id") Long id);
 }

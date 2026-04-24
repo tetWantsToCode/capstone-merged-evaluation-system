@@ -116,6 +116,17 @@ const Evaluations = () => {
       });
   }, [questionnaires, searchTerm, statusFilter, statusByQuestionnaire]);
 
+  const formatDeadline = (dateTimeString) => {
+    if (!dateTimeString) return "No deadline";
+    return new Date(dateTimeString).toLocaleString([], {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   return (
     <div className="adviser-container">
       <AdviserSidebar />
@@ -188,6 +199,7 @@ const Evaluations = () => {
                   <th>Status</th>
                   <th>Progress</th>
                   <th>Last Updated</th>
+                  <th>Deadline</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -227,6 +239,9 @@ const Evaluations = () => {
                       </div>
                     </td>
                     <td>{lastUpdated ? new Date(lastUpdated).toLocaleDateString() : "—"}</td>
+                    <td style={{ whiteSpace: "nowrap", color: q.deadlineAt ? "inherit" : "var(--dtm-muted)" }}>
+                      {formatDeadline(q.deadlineAt)}
+                    </td>
                     <td>
                       {status === "LOCKED" ? (
                         <span className="adviser-locked-label">Locked after submission</span>

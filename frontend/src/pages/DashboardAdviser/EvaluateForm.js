@@ -9,6 +9,14 @@ const EvaluateForm = () => {
   const { teamId, questionnaireId } = useParams();
   const navigate = useNavigate();
 
+  const goBackToTeamDetails = () => {
+    if (teamId) {
+      navigate(`/adviser/evaluations/${teamId}`);
+      return;
+    }
+    navigate("/adviser/dashboard");
+  };
+
   const [evaluation, setEvaluation] = useState(null);
   const [answers, setAnswers] = useState({});
   const [comments, setComments] = useState("");
@@ -149,7 +157,7 @@ const EvaluateForm = () => {
             <h1 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--dtm-gold)' }}>{evaluation.questionnaire.title}</h1>
             <p style={{ margin: '4px 0 0 0', color: 'var(--dtm-muted)', fontSize: '0.9rem' }}>Evaluating Team: {evaluation.teamName}</p>
           </div>
-          <button className="btn-secondary" onClick={() => navigate('/adviser/evaluations')}>Exit</button>
+          <button className="btn-secondary" onClick={goBackToTeamDetails}>Exit</button>
         </div>
 
         {/* Main Content Pane */}
@@ -360,7 +368,7 @@ const EvaluateForm = () => {
                   {submitting ? 'Submitting...' : 'Submit Evaluation'}
                 </button>
               ) : (
-                <button className="btn" onClick={() => navigate('/adviser/evaluations')}>Finish Viewing</button>
+                <button className="btn" onClick={goBackToTeamDetails}>Finish Viewing</button>
               )
             )}
           </div>

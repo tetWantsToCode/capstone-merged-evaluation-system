@@ -25,6 +25,7 @@ public class EvaluationService {
     private final TeamRepository teamRepository;
     private final UserRepository userRepository;
     private final QuestionnaireItemRepository questionnaireItemRepository;
+    private final QuestionnaireService questionnaireService;
 
     /**
      * Get or create an evaluation for adviser + team + questionnaire
@@ -48,6 +49,7 @@ public class EvaluationService {
 
         Questionnaire questionnaire = questionnaireRepository.findById(questionnaireId)
                 .orElseThrow(() -> new RuntimeException("Questionnaire not found"));
+        questionnaireService.ensureQuestionnaireOpenForResponses(questionnaire);
 
         Evaluation evaluation = evaluationRepository
                 .findByTeamIdAndAdviserIdAndQuestionnaireId(teamId, adviserId, questionnaireId)
@@ -91,6 +93,7 @@ public class EvaluationService {
         if (!evaluation.getAdviser().getId().equals(adviserId)) {
             throw new RuntimeException("Unauthorized evaluation access");
         }
+        questionnaireService.ensureQuestionnaireOpenForResponses(evaluation.getQuestionnaire());
 
         // Only prevent editing if SUBMITTED or REVIEWED - if IN_PROGRESS, always allow
         if (evaluation.getStatus() == Evaluation.EvaluationStatus.IN_PROGRESS) {
@@ -148,6 +151,7 @@ public class EvaluationService {
         if (!evaluation.getAdviser().getId().equals(adviserId)) {
             throw new RuntimeException("Unauthorized evaluation submission");
         }
+        questionnaireService.ensureQuestionnaireOpenForResponses(evaluation.getQuestionnaire());
 
         // Auto-grade all scores before submission
         try {

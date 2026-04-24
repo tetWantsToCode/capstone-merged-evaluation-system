@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,6 +24,7 @@ public interface QuestionnaireRepository extends JpaRepository<Questionnaire, Lo
     List<Questionnaire> findByCreatedByTeacherIdAndIsActiveTrue(Long teacherId);
     
     List<Questionnaire> findByCreatedByTeacherIdAndTarget(Long teacherId, Questionnaire.QuestionnaireTarget target);
+    List<Questionnaire> findByIsActiveTrueAndDeadlineAtBefore(LocalDateTime now);
     
     @Query("SELECT q FROM Questionnaire q JOIN q.assignedClasses c WHERE c.id IN :classIds AND q.isActive = true")
     List<Questionnaire> findByAssignedClassesIdInAndIsActiveTrue(@Param("classIds") List<Long> classIds);
@@ -35,6 +37,9 @@ public interface QuestionnaireRepository extends JpaRepository<Questionnaire, Lo
 
     @Query("SELECT q FROM Questionnaire q JOIN q.assignedClasses c WHERE c = :schoolClass AND q.isActive = true AND q.target = :target")
     List<Questionnaire> findByAssignedClassesContainingAndIsActiveTrueAndTarget(@Param("schoolClass") SchoolClass schoolClass, @Param("target") Questionnaire.QuestionnaireTarget target);
+
+    @Query("SELECT q FROM Questionnaire q JOIN q.assignedClasses c WHERE c = :schoolClass AND q.target = :target")
+    List<Questionnaire> findByAssignedClassesContainingAndTarget(@Param("schoolClass") SchoolClass schoolClass, @Param("target") Questionnaire.QuestionnaireTarget target);
 
     @Query("SELECT q FROM Questionnaire q JOIN q.assignedClasses c WHERE c = :schoolClass")
     List<Questionnaire> findByAssignedClassesContaining(@Param("schoolClass") SchoolClass schoolClass);

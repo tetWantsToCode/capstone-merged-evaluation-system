@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { teacherReportAPI } from "../../services/api";
 import { useToast } from "../../contexts/ToastContext";
@@ -9,6 +9,7 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:808
 
 const Reports = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const [questionnaires, setQuestionnaires] = useState([]);
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState(null);
@@ -25,6 +26,7 @@ const Reports = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [isAiOpen, setIsAiOpen] = useState(false);
   const aiMessagesEndRef = useRef(null);
+  const restoreHandledRef = useRef(false);
 
   const token = useMemo(() => {
     try {
@@ -63,17 +65,14 @@ const Reports = () => {
       setSelectedTeamName(null); // Reset team selection
       setLoading(true);
       
-      // Fetch both types of evaluations in parallel — use allSettled so one failure doesn't block the other
-      const [adviserResult, studentResult] = await Promise.allSettled([
+      // Fetch both types of evaluations in parallel
+      const [adviserData, studentData] = await Promise.all([
         teacherReportAPI.getQuestionnaireEvaluations(questionnaire.id),
         teacherReportAPI.getStudentQuestionnaireEvaluations(questionnaire.id)
       ]);
       
-      setEvaluations(adviserResult.status === 'fulfilled' ? adviserResult.value : []);
-      setStudentEvaluations(studentResult.status === 'fulfilled' ? studentResult.value : []);
-      if (adviserResult.status === 'rejected' && studentResult.status === 'rejected') {
-        setError('Failed to load evaluations: ' + (adviserResult.reason?.message || adviserResult.reason));
-      }
+      setEvaluations(adviserData);
+      setStudentEvaluations(studentData);
     } catch (err) {
       setError("Failed to load evaluations: " + err.message);
     } finally {
@@ -97,8 +96,37 @@ const Reports = () => {
   };
 
   const viewStudentEvaluationDetails = (evaluationId) => {
-    navigate(`/teacher/reports/student-evaluation/${evaluationId}`);
+    navigate(`/teacher/reports/student-evaluation/${evaluationId}`, {
+      state: {
+        questionnaireId: selectedQuestionnaire?.id ?? null,
+        teamName: selectedTeamName ?? null,
+      },
+    });
   };
+
+  useEffect(() => {
+    const restoreState = location.state;
+    if (restoreHandledRef.current || !restoreState?.questionnaireId || !restoreState?.teamName) {
+      return;
+    }
+    if (!questionnaires || questionnaires.length === 0) {
+      return;
+    }
+
+    const questionnaire = questionnaires.find(
+      (q) => String(q.id) === String(restoreState.questionnaireId)
+    );
+    if (!questionnaire) {
+      restoreHandledRef.current = true;
+      return;
+    }
+
+    restoreHandledRef.current = true;
+    (async () => {
+      await viewQuestionnaireEvaluations(questionnaire);
+      setSelectedTeamName(restoreState.teamName);
+    })();
+  }, [location.state, questionnaires]);
 
   const sendAiMessage = async () => {
     const trimmed = aiInput.trim();
@@ -215,8 +243,6 @@ const Reports = () => {
                     <th>Questionnaire Title</th>
                     <th>Description</th>
                     <th>Target</th>
-                    <th>Deadline</th>
-                    <th>Status</th>
                     <th>Created Date</th>
                     <th>Action</th>
                   </tr>
@@ -237,18 +263,6 @@ const Reports = () => {
                         }}>
                           {q.target === 'ADVISER' ? 'Adviser' : 'Student'}
                         </span>
-                      </td>
-                      <td>
-                        {q.deadline
-                          ? new Date(q.deadline).toLocaleString()
-                          : <span style={{ color: 'var(--dtm-muted)', fontSize: '11px' }}>No deadline</span>}
-                      </td>
-                      <td>
-                        {q.isActive === false
-                          ? <span style={{ color: '#dc3545', fontWeight: 600, fontSize: '11px' }}>Closed</span>
-                          : q.deadline && new Date(q.deadline) < new Date()
-                            ? <span style={{ color: '#dc3545', fontWeight: 600, fontSize: '11px' }}>Expired</span>
-                            : <span style={{ color: '#28a745', fontWeight: 600, fontSize: '11px' }}>Active</span>}
                       </td>
                       <td>{new Date(q.createdAt).toLocaleDateString()}</td>
                       <td>

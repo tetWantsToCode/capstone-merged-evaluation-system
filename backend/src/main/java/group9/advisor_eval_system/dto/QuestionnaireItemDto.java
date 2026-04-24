@@ -16,7 +16,6 @@ public class QuestionnaireItemDto {
     
     private Long id;
     private String questionText;
-    private String description;
     private Integer orderIndex;
     private String questionType;
     private Integer maxScore;
@@ -31,7 +30,6 @@ public class QuestionnaireItemDto {
         QuestionnaireItemDto dto = new QuestionnaireItemDto();
         dto.setId(item.getId());
         dto.setQuestionText(item.getQuestionText());
-        dto.setDescription(item.getDescription());
         dto.setOrderIndex(item.getOrderIndex() != null ? item.getOrderIndex() : 0);
         dto.setQuestionType(item.getQuestionType() != null ? item.getQuestionType().name() : "TEXT");
         dto.setMaxScore(item.getMaxScore());

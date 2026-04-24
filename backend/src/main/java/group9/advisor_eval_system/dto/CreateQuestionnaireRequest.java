@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -19,13 +20,13 @@ public class CreateQuestionnaireRequest {
 
     private String description;
 
-    private java.time.LocalDateTime deadline;
-
     private List<QuestionnaireItemDto> questions; // Questions not in sections (legacy support)
 
     private List<QuestionnaireSectionInputDto> sections; // New: questions organized into sections
     
     private String target; // ADVISER or STUDENT
+
+    private LocalDateTime deadlineAt; // Optional deadline
 
     @Data
     @NoArgsConstructor
@@ -33,8 +34,6 @@ public class CreateQuestionnaireRequest {
     public static class QuestionnaireItemDto {
         @NotBlank(message = "Question text is required")
         private String questionText;
-
-        private String description;
 
         private Integer orderIndex;
 
@@ -51,7 +50,6 @@ public class CreateQuestionnaireRequest {
         public QuestionnaireItem toEntity() {
             QuestionnaireItem item = new QuestionnaireItem();
             item.setQuestionText(this.questionText);
-            item.setDescription(this.description);
             item.setOrderIndex(this.orderIndex != null ? this.orderIndex : 0);
             item.setQuestionType(QuestionnaireItem.QuestionType.valueOf(this.questionType));
             item.setMaxScore(this.maxScore);

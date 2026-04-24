@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -91,6 +92,7 @@ public class StudentDashboardController {
             List<Student> teammates = (teamStudents != null && !teamStudents.isEmpty()) 
                 ? teamStudents.get(0).getTeam().getMembers() 
                 : Collections.singletonList(student);
+            LocalDateTime now = LocalDateTime.now();
 
             List<Map<String, Object>> response = questionnaires.stream().map(q -> {
                 Map<String, Object> map = new HashMap<>();
@@ -98,6 +100,10 @@ public class StudentDashboardController {
                 map.put("title", q.getTitle());
                 map.put("description", q.getDescription());
                 map.put("createdAt", q.getCreatedAt());
+                map.put("deadlineAt", q.getDeadlineAt());
+
+                boolean deadlinePassed = q.getDeadlineAt() != null && !q.getDeadlineAt().isAfter(now);
+                boolean isMissed = deadlinePassed;
                 
                 // Return status for each teammate (peer evaluation)
                 List<Map<String, Object>> peerTasks = teammates.stream().map(peer -> {
@@ -105,16 +111,35 @@ public class StudentDashboardController {
                     peerMap.put("peerId", peer.getId());
                     peerMap.put("peerName", peer.getFirstName() + " " + peer.getLastName() + (peer.getId().equals(student.getId()) ? " (Self)" : ""));
                     
-                    try {
-                        StudentEvaluation eval = studentEvaluationService.getOrCreateStudentEvaluation(student.getId(), q.getId(), peer.getId());
-                        peerMap.put("status", eval.getStatus());
-                        peerMap.put("evaluationId", eval.getId());
-                    } catch (Exception e) {
-                        peerMap.put("status", "READY");
+                    if (deadlinePassed) {
+                        Optional<StudentEvaluation> existing = studentEvaluationService.findExistingStudentEvaluation(
+                                student.getId(), q.getId(), peer.getId());
+                        if (existing.isPresent()) {
+                            StudentEvaluation eval = existing.get();
+                            peerMap.put("status", eval.getStatus());
+                            peerMap.put("evaluationId", eval.getId());
+                        } else {
+                            peerMap.put("status", "MISSED");
+                        }
+                    } else {
+                        try {
+                            StudentEvaluation eval = studentEvaluationService.getOrCreateStudentEvaluation(student.getId(), q.getId(), peer.getId());
+                            peerMap.put("status", eval.getStatus());
+                            peerMap.put("evaluationId", eval.getId());
+                        } catch (Exception e) {
+                            peerMap.put("status", "READY");
+                        }
                     }
                     return peerMap;
                 }).collect(Collectors.toList());
-                
+
+                if (deadlinePassed) {
+                    boolean allSubmitted = peerTasks.stream()
+                            .allMatch(t -> "SUBMITTED".equals(String.valueOf(t.get("status"))));
+                    isMissed = !allSubmitted;
+                }
+
+                map.put("isMissed", isMissed);
                 map.put("peerTasks", peerTasks);
                 return map;
             }).collect(Collectors.toList());

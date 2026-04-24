@@ -157,6 +157,17 @@ const Questionnaires = () => {
     return new Date(dateString).toLocaleDateString();
   };
 
+  const formatDeadline = (dateTimeString) => {
+    if (!dateTimeString) return 'No deadline';
+    return new Date(dateTimeString).toLocaleString([], {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   return (
     <div className="teacher-container">
       <TeacherSidebar />
@@ -196,8 +207,8 @@ const Questionnaires = () => {
                   <th>Questions</th>
                   <th>Assigned Classes</th>
                   <th>Target</th>
-                  <th>Deadline</th>
                   <th>Created Date</th>
+                  <th>Deadline</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -225,19 +236,10 @@ const Questionnaires = () => {
                         {q.target === 'ADVISER' ? 'Adviser' : 'Student'}
                       </span>
                     </td>
-                    <td>
-                      {q.deadline ? (
-                        <span style={{ fontSize: '11px' }}>
-                          {new Date(q.deadline).toLocaleString()}
-                          {new Date(q.deadline) < new Date() && (
-                            <span style={{ display: 'block', color: '#dc3545', fontSize: '10px', fontWeight: 600 }}>Expired</span>
-                          )}
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--dtm-muted)', fontSize: '11px' }}>—</span>
-                      )}
-                    </td>
                     <td>{formatDate(q.createdAt)}</td>
+                    <td style={{ whiteSpace: 'nowrap', color: q.deadlineAt ? 'inherit' : 'var(--dtm-muted)' }}>
+                      {formatDeadline(q.deadlineAt)}
+                    </td>
                     <td>
                       <button
                         type="button"

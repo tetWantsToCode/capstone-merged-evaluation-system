@@ -182,7 +182,7 @@ export const classAPI = {
     
     return await response.json();
   },
-  
+
   getClassById: async (id) => {
     const response = await fetch(`${API_BASE_URL}/classes/${id}`, {
       method: 'GET',

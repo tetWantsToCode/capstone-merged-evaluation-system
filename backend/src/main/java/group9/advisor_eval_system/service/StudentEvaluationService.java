@@ -21,6 +21,7 @@ public class StudentEvaluationService {
     private final QuestionnaireRepository questionnaireRepository;
     private final StudentRepository studentRepository;
     private final QuestionnaireItemRepository questionnaireItemRepository;
+    private final QuestionnaireService questionnaireService;
 
     public Student getStudentByEmail(String email) {
         return studentRepository.findByEmail(email)
@@ -28,6 +29,7 @@ public class StudentEvaluationService {
     }
 
     public List<Questionnaire> getAssignedQuestionnaires(Long studentId) {
+        questionnaireService.closeExpiredQuestionnaires();
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new RuntimeException("Student not found"));
 
@@ -37,11 +39,29 @@ public class StudentEvaluationService {
         }
 
         Set<Questionnaire> allQuestionnaires = new HashSet<>();
+        LocalDateTime now = LocalDateTime.now();
         for (SchoolClass schoolClass : classes) {
-            allQuestionnaires.addAll(questionnaireRepository.findByAssignedClassesContainingAndIsActiveTrueAndTarget(schoolClass, Questionnaire.QuestionnaireTarget.STUDENT));
+            List<Questionnaire> classQuestionnaires = questionnaireRepository.findByAssignedClassesContainingAndTarget(
+                    schoolClass,
+                    Questionnaire.QuestionnaireTarget.STUDENT);
+
+            for (Questionnaire q : classQuestionnaires) {
+                boolean active = Boolean.TRUE.equals(q.getIsActive());
+                boolean expiredByDeadline = q.getDeadlineAt() != null && !q.getDeadlineAt().isAfter(now);
+                if (active || expiredByDeadline) {
+                    allQuestionnaires.add(q);
+                }
+            }
         }
 
         return new ArrayList<>(allQuestionnaires);
+    }
+
+    public Optional<StudentEvaluation> findExistingStudentEvaluation(Long studentId, Long questionnaireId, Long evaluateeId) {
+        if (evaluateeId != null) {
+            return studentEvaluationRepository.findByStudentIdAndQuestionnaireIdAndEvaluateeId(studentId, questionnaireId, evaluateeId);
+        }
+        return studentEvaluationRepository.findByStudentIdAndQuestionnaireIdAndEvaluateeIsNull(studentId, questionnaireId);
     }
 
     @Transactional
@@ -51,6 +71,7 @@ public class StudentEvaluationService {
 
         Questionnaire questionnaire = questionnaireRepository.findById(questionnaireId)
                 .orElseThrow(() -> new RuntimeException("Questionnaire not found"));
+        questionnaireService.ensureQuestionnaireOpenForResponses(questionnaire);
 
         Student evaluatee = null;
         if (evaluateeId != null) {
@@ -84,6 +105,7 @@ public class StudentEvaluationService {
         if (!evaluation.getStudent().getId().equals(studentId)) {
             throw new RuntimeException("Unauthorized: You cannot save someone else's evaluation");
         }
+        questionnaireService.ensureQuestionnaireOpenForResponses(evaluation.getQuestionnaire());
 
         if (evaluation.getStatus() == StudentEvaluation.EvaluationStatus.SUBMITTED) {
             throw new RuntimeException("Evaluation is already submitted and cannot be edited");
@@ -139,6 +161,7 @@ public class StudentEvaluationService {
         if (!evaluation.getStudent().getId().equals(studentId)) {
             throw new RuntimeException("Unauthorized: You cannot submit someone else's evaluation");
         }
+        questionnaireService.ensureQuestionnaireOpenForResponses(evaluation.getQuestionnaire());
 
         // Auto Grade
         autoGradeEvaluation(evaluation);
