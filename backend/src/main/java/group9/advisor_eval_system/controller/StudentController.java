@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,11 +34,8 @@ public class StudentController {
     }
 
     @GetMapping
+    @Transactional(readOnly = true)
     public ResponseEntity<List<Student>> getAllStudents(HttpServletRequest request) {
-        Long teacherId = getTeacherId(request);
-        if (teacherId != null) {
-            return ResponseEntity.ok(studentService.getStudentsByTeacher(teacherId));
-        }
         return ResponseEntity.ok(studentService.getAllStudents());
     }
     

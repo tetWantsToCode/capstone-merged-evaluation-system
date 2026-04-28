@@ -41,9 +41,6 @@ public class Student {
     @Column(nullable = true)
     private String email;
     
-    @Column(nullable = true)
-    private String phoneNumber;
-    
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -78,30 +75,6 @@ public class Student {
         }
     }
     
-    // Expose team IDs without exposing full team objects
-    @JsonProperty("teamIds")
-    public List<Long> getTeamIds() {
-        return teams != null ? teams.stream()
-                .map(Team::getId)
-                .collect(Collectors.toList()) : new ArrayList<>();
-    }
-    
-    // Allow setting teams by IDs during deserialization
-    @JsonProperty("teamIds")
-    public void setTeamIds(List<Long> teamIds) {
-        if (teamIds != null && !teamIds.isEmpty()) {
-            this.teams = teamIds.stream()
-                    .map(id -> {
-                        Team tempTeam = new Team();
-                        tempTeam.setId(id);
-                        return tempTeam;
-                    })
-                    .collect(Collectors.toList());
-        } else {
-            this.teams = new ArrayList<>();
-        }
-    }
-    
     // Relationships
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -114,14 +87,47 @@ public class Student {
     @lombok.EqualsAndHashCode.Exclude
     private List<SchoolClass> classes = new ArrayList<>();
     
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "student_teams",
-        joinColumns = @JoinColumn(name = "student_id"),
-        inverseJoinColumns = @JoinColumn(name = "team_id")
-    )
+    @OneToMany(mappedBy = "student", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JsonIgnore
     @lombok.ToString.Exclude
     @lombok.EqualsAndHashCode.Exclude
-    private List<Team> teams = new ArrayList<>();
+    private List<TeamStudent> teamStudents = new ArrayList<>();
+    
+    // Convenience method to get teams from teamStudents
+    @Transient
+    @JsonProperty("teamIds")
+    public List<Long> getTeamIds() {
+        return teamStudents != null ? teamStudents.stream()
+                .map(ts -> ts.getTeam().getId())
+                .collect(Collectors.toList()) : new ArrayList<>();
+    }
+    
+    // Convenience method to get Team objects
+    @Transient
+    public List<Team> getTeams() {
+        return teamStudents != null ? teamStudents.stream()
+                .map(TeamStudent::getTeam)
+                .collect(Collectors.toList()) : new ArrayList<>();
+    }
+    
+    // Convenience method to set teams by Team objects
+    @Transient
+    public void setTeams(List<Team> teams) {
+        if (teams != null && !teams.isEmpty()) {
+            if (teamStudents == null) {
+                teamStudents = new ArrayList<>();
+            }
+            teamStudents.clear();
+            for (Team team : teams) {
+                TeamStudent ts = new TeamStudent();
+                ts.setStudent(this);
+                ts.setTeam(team);
+                teamStudents.add(ts);
+            }
+        } else {
+            if (teamStudents != null) {
+                teamStudents.clear();
+            }
+        }
+    }
 }

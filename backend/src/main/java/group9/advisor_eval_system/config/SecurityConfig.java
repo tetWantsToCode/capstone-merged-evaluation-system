@@ -30,11 +30,10 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/api/test/**").permitAll()
-                .requestMatchers("/api/users/role/**").permitAll()
+                .requestMatchers("/api/auth/google/**", "/api/test/**").permitAll()
                 .anyRequest().authenticated()
             );
-        
+
         return http.build();
     }
 

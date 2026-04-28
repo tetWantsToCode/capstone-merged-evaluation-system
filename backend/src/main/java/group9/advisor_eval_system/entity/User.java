@@ -24,12 +24,10 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @NotBlank
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String firstName;
     
-    @NotBlank
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String lastName;
     
     @Email
@@ -37,20 +35,9 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
     
-    @NotBlank
-    @Column(nullable = false)
-    @JsonIgnore
-    private String password; // Encrypted
-    
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserRole role; // TEACHER or ADVISER
-    
-    @Column(nullable = true)
-    private String phoneNumber;
-    
-    @Column(nullable = true)
-    private String department;
     
     @Column(nullable = false)
     private Boolean isActive = true;

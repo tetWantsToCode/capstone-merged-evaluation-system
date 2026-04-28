@@ -63,7 +63,6 @@ public class StudentService {
         student.setFirstName(studentDetails.getFirstName());
         student.setLastName(studentDetails.getLastName());
         student.setEmail(studentDetails.getEmail());
-        student.setPhoneNumber(studentDetails.getPhoneNumber());
         
         // Track removed classes BEFORE updating the classes list
         List<Long> oldClassIds = student.getClasses().stream()
@@ -173,7 +172,6 @@ public class StudentService {
                 if (email != null && email.contains("@") && email.contains(".")) {
                     student.setEmail(email);
                 }
-                student.setPhoneNumber(dto.getPhoneNumber());
                 student.setCreatedBy(teacherId);
                 
                 Student savedStudent = studentRepository.save(student);

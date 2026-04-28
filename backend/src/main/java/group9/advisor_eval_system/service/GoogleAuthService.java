@@ -41,8 +41,7 @@ public class GoogleAuthService {
     private static final List<String> SCOPES = Arrays.asList(
             "https://www.googleapis.com/auth/forms",
             "https://www.googleapis.com/auth/drive.file",
-            "https://www.googleapis.com/auth/userinfo.email"
-    );
+            "https://www.googleapis.com/auth/userinfo.email");
 
     public GoogleAuthService(UserRepository userRepository) {
         this.userRepository = userRepository;
@@ -58,8 +57,7 @@ public class GoogleAuthService {
                     GsonFactory.getDefaultInstance(),
                     clientId,
                     clientSecret,
-                    SCOPES
-            ).setAccessType("offline")
+                    SCOPES).setAccessType("offline")
                     .setApprovalPrompt("force")
                     .build();
 
@@ -86,8 +84,7 @@ public class GoogleAuthService {
                     clientId,
                     clientSecret,
                     authorizationCode,
-                    redirectUri
-            ).execute();
+                    redirectUri).execute();
 
             String accessToken = tokenResponse.getAccessToken();
             String refreshToken = tokenResponse.getRefreshToken();
@@ -102,8 +99,14 @@ public class GoogleAuthService {
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
             user.setGoogleAccessToken(accessToken);
-            user.setGoogleRefreshToken(refreshToken);
-            user.setGoogleTokenExpiry(LocalDateTime.now().plusSeconds(expiresInSeconds));
+            // Google may omit refresh_token on subsequent grants.
+            // Never overwrite an existing refresh token with null.
+            if (refreshToken != null && !refreshToken.isBlank()) {
+                user.setGoogleRefreshToken(refreshToken);
+            }
+            if (expiresInSeconds != null) {
+                user.setGoogleTokenExpiry(LocalDateTime.now().plusSeconds(expiresInSeconds));
+            }
             user.setGoogleEmail(googleEmail);
             user.setGoogleId(googleId);
             user.setIsGoogleLinked(true);
@@ -149,8 +152,13 @@ public class GoogleAuthService {
             throw new RuntimeException("Google account not linked");
         }
 
+        if (user.getGoogleAccessToken() == null || user.getGoogleAccessToken().isBlank()) {
+            throw new RuntimeException("Google access token missing; please unlink and link Google again");
+        }
+
         // Check if token is expired or about to expire
-        if (user.getGoogleTokenExpiry().isBefore(LocalDateTime.now().plusMinutes(5))) {
+        if (user.getGoogleTokenExpiry() == null
+                || user.getGoogleTokenExpiry().isBefore(LocalDateTime.now().plusMinutes(5))) {
             refreshAccessToken(user);
         }
 
@@ -163,19 +171,23 @@ public class GoogleAuthService {
     @Transactional
     protected void refreshAccessToken(User user) {
         try {
-            com.google.api.client.googleapis.auth.oauth2.GoogleRefreshTokenRequest refreshRequest = 
-                new com.google.api.client.googleapis.auth.oauth2.GoogleRefreshTokenRequest(
+            if (user.getGoogleRefreshToken() == null || user.getGoogleRefreshToken().isBlank()) {
+                throw new RuntimeException("Google refresh token missing; please unlink and link Google again");
+            }
+
+            com.google.api.client.googleapis.auth.oauth2.GoogleRefreshTokenRequest refreshRequest = new com.google.api.client.googleapis.auth.oauth2.GoogleRefreshTokenRequest(
                     new NetHttpTransport(),
                     GsonFactory.getDefaultInstance(),
                     user.getGoogleRefreshToken(),
                     clientId,
-                    clientSecret
-                );
+                    clientSecret);
 
             GoogleTokenResponse tokenResponse = refreshRequest.execute();
 
             user.setGoogleAccessToken(tokenResponse.getAccessToken());
-            user.setGoogleTokenExpiry(LocalDateTime.now().plusSeconds(tokenResponse.getExpiresInSeconds()));
+            if (tokenResponse.getExpiresInSeconds() != null) {
+                user.setGoogleTokenExpiry(LocalDateTime.now().plusSeconds(tokenResponse.getExpiresInSeconds()));
+            }
 
             userRepository.save(user);
 
@@ -183,7 +195,10 @@ public class GoogleAuthService {
 
         } catch (Exception e) {
             log.error("Error refreshing access token", e);
-            throw new RuntimeException("Failed to refresh access token", e);
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
+            }
+            throw new RuntimeException("Failed to refresh access token: " + e.getMessage(), e);
         }
     }
 

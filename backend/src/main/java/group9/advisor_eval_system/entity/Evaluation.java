@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -45,19 +46,31 @@ public class Evaluation {
     // Relationships
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "team_id", nullable = false)
+    @JsonIgnore
+    @lombok.ToString.Exclude
+    @lombok.EqualsAndHashCode.Exclude
     private Team team;
-    
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "adviser_id", nullable = false)
+    @JsonIgnore
+    @lombok.ToString.Exclude
+    @lombok.EqualsAndHashCode.Exclude
     private User adviser;
-    
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "questionnaire_id", nullable = false)
+    @JsonIgnore
+    @lombok.ToString.Exclude
+    @lombok.EqualsAndHashCode.Exclude
     private Questionnaire questionnaire;
-    
+
     @OneToMany(mappedBy = "evaluation", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    @lombok.ToString.Exclude
+    @lombok.EqualsAndHashCode.Exclude
     private Set<EvaluationScore> scores = new HashSet<>();
-    
+
     public enum EvaluationStatus {
         IN_PROGRESS,
         SUBMITTED,

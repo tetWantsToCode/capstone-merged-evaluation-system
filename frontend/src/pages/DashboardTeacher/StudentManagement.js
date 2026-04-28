@@ -5,7 +5,7 @@ import { useToast } from "../../contexts/ToastContext";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
 import "./Teacher.css";
 
-const Student = () => {
+const StudentManagement = () => {
   const toast = useToast();
   const [students, setStudents] = useState([]);
   const [classes, setClasses] = useState([]);
@@ -29,7 +29,6 @@ const Student = () => {
     firstName: '',
     lastName: '',
     email: '',
-    phoneNumber: '',
     classIds: []
   });
 
@@ -210,14 +209,13 @@ const Student = () => {
                   <th>Last Name</th>
                   <th>Class</th>
                   <th>Email</th>
-                  <th>Phone Number</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {students.length === 0 ? (
                   <tr>
-                    <td colSpan="7" style={{ textAlign: 'center' }}>No students found</td>
+                    <td colSpan="6" style={{ textAlign: 'center' }}>No students found</td>
                   </tr>
                 ) : (
                   students.map((student) => (
@@ -235,14 +233,15 @@ const Student = () => {
                         }
                       </td>
                       <td>{student.email || 'N/A'}</td>
-                      <td>{student.phoneNumber || 'N/A'}</td>
                       <td>
-                        <button className="btn" onClick={() => handleEdit(student)} style={{ marginRight: '5px' }}>
+                        <div className="action-buttons">
+                        <button className="btn btn-sm" onClick={() => handleEdit(student)}>
                           Edit
                         </button>
-                        <button className="btn-secondary" onClick={() => handleDelete(student.id)}>
+                        <button className="btn-secondary btn-sm" onClick={() => handleDelete(student.id)}>
                           Delete
                         </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -319,16 +318,6 @@ const Student = () => {
                     placeholder="student@example.com"
                   />
                 </div>
-                <div className="form-group">
-                  <label>Phone Number</label>
-                  <input
-                    type="tel"
-                    name="phoneNumber"
-                    value={currentStudent.phoneNumber}
-                    onChange={handleInputChange}
-                    placeholder="+1234567890"
-                  />
-                </div>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                   <button type="submit" className="btn">
                     {editMode ? 'Update' : 'Add'} Student
@@ -393,4 +382,4 @@ const Student = () => {
   );
 };
 
-export default Student;
+export default StudentManagement;

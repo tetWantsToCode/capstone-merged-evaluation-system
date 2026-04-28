@@ -14,10 +14,11 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 @AllArgsConstructor
 public class EvaluationResponse {
-    
+
     private Long id;
     private Long teamId;
     private String teamName;
+    private String className;
     private Long adviserId;
     private String adviserName;
     private QuestionnaireWithItemsDto questionnaire;
@@ -28,37 +29,43 @@ public class EvaluationResponse {
     private LocalDateTime submittedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    
+
     public static EvaluationResponse fromEntity(Evaluation evaluation) {
         if (evaluation == null) {
             return null;
         }
-        
+
         EvaluationResponse dto = new EvaluationResponse();
         dto.setId(evaluation.getId());
-        
+
         // Team info with null safety
         try {
             if (evaluation.getTeam() != null) {
                 dto.setTeamId(evaluation.getTeam().getId());
                 dto.setTeamName(evaluation.getTeam().getName());
+                if (evaluation.getTeam().getSchoolClass() != null) {
+                    dto.setClassName(evaluation.getTeam().getSchoolClass().getName());
+                }
             }
         } catch (Exception e) {
             // Team info not available
         }
-        
+
         // Adviser info with null safety
         try {
             if (evaluation.getAdviser() != null) {
                 dto.setAdviserId(evaluation.getAdviser().getId());
-                String firstName = evaluation.getAdviser().getFirstName() != null ? evaluation.getAdviser().getFirstName() : "";
-                String lastName = evaluation.getAdviser().getLastName() != null ? evaluation.getAdviser().getLastName() : "";
+                String firstName = evaluation.getAdviser().getFirstName() != null
+                        ? evaluation.getAdviser().getFirstName()
+                        : "";
+                String lastName = evaluation.getAdviser().getLastName() != null ? evaluation.getAdviser().getLastName()
+                        : "";
                 dto.setAdviserName((firstName + " " + lastName).trim());
             }
         } catch (Exception e) {
             // Adviser info not available
         }
-        
+
         // Questionnaire with items with null safety
         try {
             if (evaluation.getQuestionnaire() != null) {
@@ -70,31 +77,30 @@ public class EvaluationResponse {
             emptyQuestionnaire.setItems(new ArrayList<>());
             dto.setQuestionnaire(emptyQuestionnaire);
         }
-        
+
         // Scores with null safety
         try {
             if (evaluation.getScores() != null && !evaluation.getScores().isEmpty()) {
                 dto.setScores(
-                    evaluation.getScores().stream()
-                        .filter(score -> score != null)
-                        .map(EvaluationScoreDto::fromEntity)
-                        .filter(scoreDto -> scoreDto != null)
-                        .collect(Collectors.toList())
-                );
+                        evaluation.getScores().stream()
+                                .filter(score -> score != null)
+                                .map(EvaluationScoreDto::fromEntity)
+                                .filter(scoreDto -> scoreDto != null)
+                                .collect(Collectors.toList()));
             } else {
                 dto.setScores(new ArrayList<>());
             }
         } catch (Exception e) {
             dto.setScores(new ArrayList<>());
         }
-        
+
         dto.setGeneralComments(evaluation.getGeneralComments());
         dto.setStatus(evaluation.getStatus() != null ? evaluation.getStatus().name() : "IN_PROGRESS");
         dto.setAllowEdit(evaluation.getAllowEdit() != null ? evaluation.getAllowEdit() : true);
         dto.setSubmittedAt(evaluation.getSubmittedAt());
         dto.setCreatedAt(evaluation.getCreatedAt());
         dto.setUpdatedAt(evaluation.getUpdatedAt());
-        
+
         return dto;
     }
 }

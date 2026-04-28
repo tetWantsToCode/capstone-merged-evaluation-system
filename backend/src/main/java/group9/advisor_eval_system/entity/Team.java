@@ -60,31 +60,42 @@ public class Team {
         }
     }
     
-    // Expose member IDs without exposing full member objects
+    // Expose member IDs without exposing full member objects  
+    @Transient
     @JsonProperty("memberIds")
     public List<Long> getMemberIds() {
-        return members != null ? members.stream()
-                .map(Student::getId)
+        return teamStudents != null ? teamStudents.stream()
+                .map(ts -> ts.getStudent().getId())
                 .collect(Collectors.toList()) : new ArrayList<>();
     }
     
     // Allow setting members by IDs during deserialization
-    @JsonProperty("memberIds")
+    @Transient
+    @JsonIgnore
     public void setMemberIds(List<Long> memberIds) {
         if (memberIds != null && !memberIds.isEmpty()) {
-            this.members = memberIds.stream()
-                    .map(id -> {
-                        Student student = new Student();
-                        student.setId(id);
-                        return student;
-                    })
-                    .collect(Collectors.toList());
+            // This is a convenience method - in practice, use TeamStudent directly
+            if (teamStudents == null) {
+                teamStudents = new ArrayList<>();
+            }
+            teamStudents.clear();
+            for (Long memberId : memberIds) {
+                TeamStudent ts = new TeamStudent();
+                Student student = new Student();
+                student.setId(memberId);
+                ts.setStudent(student);
+                ts.setTeam(this);
+                teamStudents.add(ts);
+            }
         } else {
-            this.members = new ArrayList<>();
+            if (teamStudents != null) {
+                teamStudents.clear();
+            }
         }
     }
     
     // Expose adviser IDs without exposing full adviser objects
+    @Transient
     @JsonProperty("adviserIds")
     public List<Long> getAdviserIds() {
         return advisers != null ? advisers.stream()
@@ -93,7 +104,8 @@ public class Team {
     }
     
     // Allow setting advisers by IDs during deserialization
-    @JsonProperty("adviserIds")
+    @Transient
+    @JsonIgnore
     public void setAdviserIds(List<Long> adviserIds) {
         if (adviserIds != null && !adviserIds.isEmpty()) {
             this.advisers = adviserIds.stream()
@@ -111,16 +123,47 @@ public class Team {
     // Relationships
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "class_id", nullable = false)
-    @JsonIgnoreProperties({"students", "teams", "teacher"})
+    @JsonIgnore
     @lombok.ToString.Exclude
     @lombok.EqualsAndHashCode.Exclude
     private SchoolClass schoolClass;
     
-    @ManyToMany(mappedBy = "teams")
+    @OneToMany(mappedBy = "team", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JsonIgnore
     @lombok.ToString.Exclude
     @lombok.EqualsAndHashCode.Exclude
-    private List<Student> members = new ArrayList<>();
+    private List<TeamStudent> teamStudents = new ArrayList<>();
+    
+    // Convenience method to get students from teamStudents
+    @Transient
+    @JsonIgnore
+    public List<Student> getMembers() {
+        return teamStudents != null ? teamStudents.stream()
+                .map(TeamStudent::getStudent)
+                .collect(Collectors.toList()) : new ArrayList<>();
+    }
+    
+    // Convenience method to set students as members
+    @Transient
+    @JsonIgnore
+    public void setMembers(List<Student> members) {
+        if (members != null && !members.isEmpty()) {
+            if (teamStudents == null) {
+                teamStudents = new ArrayList<>();
+            }
+            teamStudents.clear();
+            for (Student student : members) {
+                TeamStudent ts = new TeamStudent();
+                ts.setStudent(student);
+                ts.setTeam(this);
+                teamStudents.add(ts);
+            }
+        } else {
+            if (teamStudents != null) {
+                teamStudents.clear();
+            }
+        }
+    }
     
     @ManyToMany
     @JoinTable(

@@ -1,17 +1,26 @@
 .summary-card {
-  background: #ffffff;
+  background: #3b252b;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   padding: 18px 20px;
   border-radius: 14px;
-  border: 1.5px solid #f9d7a4;
-  box-shadow: 0 6px 20px rgba(34, 34, 34, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   text-align: left;
   flex: 1;
   min-width: 180px;
+  transition: all 0.3s ease;
+}
+
+.summary-card:hover {
+  border-color: rgba(242, 201, 76, 0.25);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(242, 201, 76, 0.06);
+  transform: translateY(-2px);
 }
 
 .summary-card h3 {
   font-size: 14px;
-  color: #8a151f;
+  color: #a09890;
   margin-bottom: 6px;
   font-weight: 700;
   letter-spacing: 0.1px;
@@ -20,6 +29,6 @@
 .summary-card p {
   font-size: 28px;
   font-weight: 700;
-  color: #22223b;
+  color: #f5f0eb;
   margin: 0;
 }

@@ -1,3 +1,6 @@
+# capstone-merged-evaluation-system
+An integrated academic evaluation system combining adviser assessments and peer evaluations to provide structured, rubric-based grading for student teams.
+
 # 📊 Adviser Evaluation System
 The Adviser Evaluation System is a web-based platform that helps teachers manage classes, 
 create teams, and collect adviser evaluations more easily. Instead of using paper or spreadsheets, 

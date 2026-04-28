@@ -56,3 +56,13 @@ jwt.expiration=86400000
 google.client.id=${GOOGLE_CLIENT_ID:your-client-id-here}
 google.client.secret=${GOOGLE_CLIENT_SECRET:your-client-secret-here}
 google.redirect.uri=${GOOGLE_REDIRECT_URI:http://localhost:3000/profile/google-callback}
+
+# ============================================
+# GEMINI AI CONFIGURATION
+# ============================================
+# Recommended: set GEMINI_API_KEY in your environment or in backend/.env
+gemini.api.key=${GEMINI_API_KEY:}
+
+# Recommended defaults; override via GEMINI_API_VERSION / GEMINI_MODEL if needed
+gemini.api.version=${GEMINI_API_VERSION:v1}
+gemini.model=${GEMINI_MODEL:gemini-2.5-flash}

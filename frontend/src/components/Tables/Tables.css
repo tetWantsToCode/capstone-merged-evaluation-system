@@ -8,14 +8,17 @@
   }
   
   .table-default th {
-    background: #2a3f54;
-    color: white;
+    background: rgba(138, 21, 31, 0.35);
+    color: #f2c94c;
     padding: 12px;
+    font-weight: 700;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
   
   .table-default td {
     padding: 12px;
-    background: #fff;
-    border-bottom: 1px solid #e0e0e0;
+    background: rgba(255, 255, 255, 0.03);
+    color: #f5f0eb;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
   

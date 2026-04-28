@@ -18,7 +18,8 @@ public class QuestionnaireWithItemsDto {
     private String title;
     private String description;
     private String googleFormUrl;
-    private List<QuestionnaireItemDto> items;
+    private List<QuestionnaireItemDto> items; // Questions not in sections (legacy)
+    private List<QuestionnaireSectionDto> sections; // New: sections with their questions
     
     public static QuestionnaireWithItemsDto fromEntity(Questionnaire questionnaire) {
         if (questionnaire == null) {
@@ -31,12 +32,32 @@ public class QuestionnaireWithItemsDto {
         dto.setDescription(questionnaire.getDescription());
         dto.setGoogleFormUrl(questionnaire.getGoogleFormUrl());
         
-        // Convert items to DTOs with null safety
+        // Convert sections if present
+        if (questionnaire.getSections() != null && !questionnaire.getSections().isEmpty()) {
+            try {
+                dto.setSections(
+                    questionnaire.getSections().stream()
+                        .filter(section -> section != null)
+                        .map(QuestionnaireSectionDto::fromEntity)
+                        .sorted((a, b) -> Integer.compare(
+                            a.getOrderIndex() != null ? a.getOrderIndex() : 0,
+                            b.getOrderIndex() != null ? b.getOrderIndex() : 0
+                        ))
+                        .collect(Collectors.toList())
+                );
+            } catch (Exception e) {
+                dto.setSections(new ArrayList<>());
+            }
+        } else {
+            dto.setSections(new ArrayList<>());
+        }
+        
+        // Convert items to DTOs with null safety (items not in sections)
         try {
             if (questionnaire.getItems() != null && !questionnaire.getItems().isEmpty()) {
                 dto.setItems(
                     questionnaire.getItems().stream()
-                        .filter(item -> item != null)
+                        .filter(item -> item != null && item.getSection() == null) // Only items not in sections
                         .map(QuestionnaireItemDto::fromEntity)
                         .sorted((a, b) -> Integer.compare(
                             a.getOrderIndex() != null ? a.getOrderIndex() : 0,

@@ -71,7 +71,6 @@ public class ExcelImportUtil {
                     if (cols.length > 1) student.setFirstName(cols[1]);
                     if (cols.length > 2) student.setLastName(cols[2]);
                     if (cols.length > 3 && !cols[3].isEmpty()) student.setEmail(cols[3]);
-                    if (cols.length > 4 && !cols[4].isEmpty()) student.setPhoneNumber(cols[4]);
                 }
 
                 // Only add if required fields are present
@@ -148,6 +147,13 @@ public class ExcelImportUtil {
                                 student.setEmail(email);
                             }
                         }
+                        
+                        // Validate required fields
+                        if (student.getStudentId() != null && !student.getStudentId().isEmpty() &&
+                            student.getFirstName() != null && !student.getFirstName().isEmpty() &&
+                            student.getLastName() != null && !student.getLastName().isEmpty()) {
+                            students.add(student);
+                        }
                     } else {
                         // Format 1: Student ID, First Name, Last Name, Email, Phone Number
                         // Column 0: Student ID
@@ -177,21 +183,12 @@ public class ExcelImportUtil {
                             }
                         }
                         
-                        // Column 4: Phone Number (optional)
-                        Cell phoneCell = row.getCell(4);
-                        if (phoneCell != null) {
-                            String phone = getCellValueAsString(phoneCell).trim();
-                            if (!phone.isEmpty()) {
-                                student.setPhoneNumber(phone);
-                            }
+                        // Validate required fields
+                        if (student.getStudentId() != null && !student.getStudentId().isEmpty() &&
+                            student.getFirstName() != null && !student.getFirstName().isEmpty() &&
+                            student.getLastName() != null && !student.getLastName().isEmpty()) {
+                            students.add(student);
                         }
-                    }
-                    
-                    // Validate required fields
-                    if (student.getStudentId() != null && !student.getStudentId().isEmpty() &&
-                        student.getFirstName() != null && !student.getFirstName().isEmpty() &&
-                        student.getLastName() != null && !student.getLastName().isEmpty()) {
-                        students.add(student);
                     }
                 } catch (Exception e) {
                     throw new RuntimeException("Error parsing row " + (rowIndex + 1) + ": " + e.getMessage());

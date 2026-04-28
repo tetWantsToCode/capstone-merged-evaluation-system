@@ -15,7 +15,6 @@ public class AuthResponse {
     private String lastName;
     private String email;
     private User.UserRole role;
-    private String department;
     private Boolean isActive;
     private String token;
     private String message;
@@ -26,7 +25,6 @@ public class AuthResponse {
         this.lastName = user.getLastName();
         this.email = user.getEmail();
         this.role = user.getRole();
-        this.department = user.getDepartment();
         this.isActive = user.getIsActive();
         this.token = token;
         this.message = message;

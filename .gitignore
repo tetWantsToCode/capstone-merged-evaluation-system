@@ -33,9 +33,14 @@ build/
 .vscode/
 
 ### Sensitive Configuration ###
-# Note: application.properties uses environment variables and is safe to commit
-# Only ignore application-*.properties (like application-local.properties with secrets)
-**/src/main/resources/application-local.properties
-**/src/main/resources/application-prod.properties
+# Properties files with credentials
+**/src/main/resources/application.properties
+**/src/main/resources/application-*.properties
+*.properties
+
+# SQL files with sensitive data
+*.sql
+
+# Environment files
 .env
 .env.local
