@@ -32,6 +32,8 @@ public class CreateQuestionnaireRequest {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class QuestionnaireItemDto {
+        private Long id;
+
         @NotBlank(message = "Question text is required")
         private String questionText;
 
@@ -46,9 +48,11 @@ public class CreateQuestionnaireRequest {
 
         private String correctAnswer; // Correct answer for auto-grading
         private Integer pointsValue; // Points for correct answer (default 1)
+        private Boolean required; // Defaults to true when omitted
 
         public QuestionnaireItem toEntity() {
             QuestionnaireItem item = new QuestionnaireItem();
+            item.setId(this.id);
             item.setQuestionText(this.questionText);
             item.setOrderIndex(this.orderIndex != null ? this.orderIndex : 0);
             item.setQuestionType(QuestionnaireItem.QuestionType.valueOf(this.questionType));
@@ -56,6 +60,7 @@ public class CreateQuestionnaireRequest {
             item.setMinScore(this.minScore);
             item.setCorrectAnswer(this.correctAnswer);
             item.setPointsValue(this.pointsValue != null ? this.pointsValue : 1);
+            item.setRequired(this.required == null || this.required);
 
             // Convert choices array to JSON string
             if (this.choices != null && !this.choices.isEmpty()) {

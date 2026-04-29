@@ -7,6 +7,18 @@ import "./Teacher.css";
 import "./QuestionnaireTwoColumn.css";
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/api').replace(/\/api\/?$/, '');
+const LOCAL_API_BASE_URL = 'http://localhost:8080';
+
+const fetchWithLocalFallback = async (path, options = {}) => {
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, options);
+  } catch (error) {
+    if (API_BASE_URL === LOCAL_API_BASE_URL) {
+      throw error;
+    }
+    return fetch(`${LOCAL_API_BASE_URL}${path}`, options);
+  }
+};
 
 const CreateQuestionnaire = () => {
   const navigate = useNavigate();
@@ -42,7 +54,8 @@ const CreateQuestionnaire = () => {
     maxScore: 5,
     choices: [],
     correctAnswer: "",
-    pointsValue: 1
+    pointsValue: 1,
+    required: true,
   });
 
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
@@ -61,7 +74,7 @@ const CreateQuestionnaire = () => {
         return false;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/google-auth/status`, {
+      const response = await fetchWithLocalFallback('/api/google-auth/status', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -151,7 +164,8 @@ const CreateQuestionnaire = () => {
       maxScore: 5,
       choices: [],
       correctAnswer: "",
-      pointsValue: 1
+      pointsValue: 1,
+      required: true,
     });
 
     toast.success('Question added!');
@@ -304,28 +318,17 @@ const CreateQuestionnaire = () => {
 
                 {/* Section Navigation */}
                 {formData.sections.length > 1 && (
-                  <div style={{ marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      {formData.sections.map((section, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setActiveSectionIndex(idx)}
-                          style={{
-                            padding: '6px 10px',
-                            backgroundColor: activeSectionIndex === idx ? 'linear-gradient(135deg, rgba(138, 21, 31, 0.8), rgba(138, 21, 31, 0.5))' : 'rgba(138, 21, 31, 0.3)',
-                            color: activeSectionIndex === idx ? 'var(--dtm-gold)' : 'var(--dtm-muted)',
-                            border: activeSectionIndex === idx ? '1px solid var(--dtm-gold)' : '1px solid rgba(242, 201, 76, 0.2)',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontWeight: activeSectionIndex === idx ? '600' : '500',
-                            fontSize: '11px'
-                          }}
-                        >
-                          {section.sectionTitle}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="section-tabs" style={{ marginBottom: '8px' }}>
+                    {formData.sections.map((section, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        className={`section-tab ${activeSectionIndex === idx ? 'active' : ''}`}
+                        onClick={() => setActiveSectionIndex(idx)}
+                      >
+                        {section.sectionTitle}
+                      </button>
+                    ))}
                   </div>
                 )}
 
@@ -355,6 +358,7 @@ const CreateQuestionnaire = () => {
                             <small style={{ color: 'var(--dtm-muted)', fontSize: '10px' }}>
                               {q.questionType}
                               {(q.questionType === 'NUMERIC_SCALE' || q.questionType === 'RATING') && ` (${q.minScore}-${q.maxScore})`}
+                              {q.required === false ? ' • Optional' : ' • Required'}
                             </small>
                           </div>
                           <button
@@ -592,7 +596,17 @@ const CreateQuestionnaire = () => {
                       </div>
                     )}
 
-                    <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '4px' }}>
+                    <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '8px' }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label>Requirement</label>
+                        <select
+                          value={newQuestion.required ? 'REQUIRED' : 'OPTIONAL'}
+                          onChange={(e) => setNewQuestion({ ...newQuestion, required: e.target.value === 'REQUIRED' })}
+                        >
+                          <option value="REQUIRED">Required</option>
+                          <option value="OPTIONAL">Optional</option>
+                        </select>
+                      </div>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '4px' }}>
                         <div className="form-group" style={{ flex: 1, margin: 0 }}>
                           <label style={{ marginBottom: '3px' }}>Correct Answer (Optional)</label>

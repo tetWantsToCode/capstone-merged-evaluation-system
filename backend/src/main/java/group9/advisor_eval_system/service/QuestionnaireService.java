@@ -1,6 +1,7 @@
 package group9.advisor_eval_system.service;
 
 import com.google.api.services.forms.v1.model.Form;
+import com.google.api.services.forms.v1.model.Item;
 import group9.advisor_eval_system.dto.CreateQuestionnaireRequest;
 import group9.advisor_eval_system.entity.*;
 import group9.advisor_eval_system.repository.*;
@@ -12,7 +13,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -151,6 +155,9 @@ public class QuestionnaireService {
                 savedQuestionnaire.getId(),
                 totalQuestionCount,
                 sections != null ? sections.size() : 0);
+
+        // Persist Google question/item ids to local rows for future updates and tracing.
+        syncGoogleQuestionMappings(savedQuestionnaire.getId(), teacherId);
 
         return savedQuestionnaire;
     }
@@ -427,10 +434,33 @@ public class QuestionnaireService {
             questionnaire.setDeadlineAt(null);
         }
 
-        // Update items and sections
-        questionnaireItemRepository.deleteAll(questionnaire.getItems());
+        // Update sections first. We recreate section rows but preserve questionnaire item rows
+        // (by id) whenever possible so local mappings stay stable across minor edits.
+        List<QuestionnaireItem> existingItems = questionnaireItemRepository
+                .findByQuestionnaireIdOrderByOrderIndex(questionnaireId);
+        Map<Long, QuestionnaireItem> existingItemsById = existingItems.stream()
+                .filter(item -> item.getId() != null)
+                .collect(Collectors.toMap(QuestionnaireItem::getId, item -> item, (a, b) -> a, HashMap::new));
+        Set<Long> retainedItemIds = new HashSet<>();
+        List<QuestionnaireItem> allSavedItems = new ArrayList<>();
+
+        // Break section links before deleting sections to avoid cascading item deletions.
+        // We want to preserve question rows (by id) for update semantics.
+        for (QuestionnaireItem existingItem : existingItems) {
+            existingItem.setSection(null);
+        }
+        questionnaireItemRepository.saveAll(existingItems);
+        questionnaireItemRepository.flush();
+
+        // Important: clear old section -> items collections in-memory before deleting
+        // sections, otherwise JPA may still cascade-remove those items based on the
+        // stale collection snapshot and mark them as deleted in this persistence context.
+        for (QuestionnaireSection oldSection : questionnaire.getSections()) {
+            oldSection.getItems().clear();
+        }
+
         questionnaireSectionRepository.deleteAll(questionnaire.getSections());
-        questionnaire.getItems().clear();
+        questionnaireSectionRepository.flush();
         questionnaire.getSections().clear();
 
         if (request.getSections() != null && !request.getSections().isEmpty()) {
@@ -445,54 +475,289 @@ public class QuestionnaireService {
 
                 if (sectionDto.getItems() != null && !sectionDto.getItems().isEmpty()) {
                     for (int i = 0; i < sectionDto.getItems().size(); i++) {
-                        QuestionnaireItem item = sectionDto.getItems().get(i).toEntity();
-                        item.setQuestionnaire(questionnaire);
-                        item.setSection(savedSection);
-                        item.setOrderIndex(i);
-                        questionnaireItemRepository.save(item);
-                        questionnaire.getItems().add(item);
+                        CreateQuestionnaireRequest.QuestionnaireItemDto itemDto = sectionDto.getItems().get(i);
+                        QuestionnaireItem item = findOrCreateQuestionnaireItem(itemDto.getId(), existingItemsById);
+                        copyItemFields(itemDto, item, i, questionnaire, savedSection);
+                        QuestionnaireItem savedItem = questionnaireItemRepository.save(item);
+                        allSavedItems.add(savedItem);
+                        if (savedItem.getId() != null) {
+                            retainedItemIds.add(savedItem.getId());
+                        }
                     }
                 }
                 questionnaire.getSections().add(savedSection);
             }
         } else if (request.getQuestions() != null && !request.getQuestions().isEmpty()) {
             for (int i = 0; i < request.getQuestions().size(); i++) {
-                QuestionnaireItem item = request.getQuestions().get(i).toEntity();
-                item.setQuestionnaire(questionnaire);
-                item.setOrderIndex(i);
-                questionnaireItemRepository.save(item);
-                questionnaire.getItems().add(item);
+                CreateQuestionnaireRequest.QuestionnaireItemDto itemDto = request.getQuestions().get(i);
+                QuestionnaireItem item = findOrCreateQuestionnaireItem(itemDto.getId(), existingItemsById);
+                copyItemFields(itemDto, item, i, questionnaire, null);
+                QuestionnaireItem savedItem = questionnaireItemRepository.save(item);
+                allSavedItems.add(savedItem);
+                if (savedItem.getId() != null) {
+                    retainedItemIds.add(savedItem.getId());
+                }
             }
         }
+
+        // Remove questions that are no longer present in the edited questionnaire payload.
+        List<QuestionnaireItem> removedItems = existingItems.stream()
+                .filter(item -> item.getId() != null && !retainedItemIds.contains(item.getId()))
+                .toList();
+        if (!removedItems.isEmpty()) {
+            questionnaireItemRepository.deleteAll(removedItems);
+        }
+
+        questionnaire.setItems(new java.util.HashSet<>(allSavedItems));
 
         Questionnaire saved = questionnaireRepository.save(questionnaire);
 
         // Synchronize with Google Forms API
         if (saved.getGoogleFormId() != null) {
-            try {
-                // Prepare sorted lists
-                List<QuestionnaireItem> allQuestions = new ArrayList<>(saved.getItems());
-                allQuestions.sort(java.util.Comparator.comparing(QuestionnaireItem::getOrderIndex));
-                List<QuestionnaireSection> allSections = new ArrayList<>(saved.getSections());
-                allSections.sort(java.util.Comparator.comparing(QuestionnaireSection::getOrderIndex));
-                
-                // For loose questions vs sectioned questions, check if we have sections
-                List<QuestionnaireItem> looseQuestions = new ArrayList<>();
-                if (allSections.isEmpty()) {
-                    looseQuestions = allQuestions;
-                }
-                
-                googleFormsService.overwriteGoogleForm(teacherId, saved.getGoogleFormId(), 
-                        saved.getTitle(), saved.getDescription(),
-                        looseQuestions, allSections);
-            } catch (Exception e) {
-                log.error("Failed to sync updates to Google Form. The local database was updated.", e);
+            // Build sync payload from the saved items we just persisted.
+            // Do not rely on section.getItems() collections here, because they may be stale/empty
+            // in-memory right after section recreation.
+            List<QuestionnaireItem> allQuestions = new ArrayList<>(allSavedItems);
+            allQuestions.sort(java.util.Comparator.comparing(QuestionnaireItem::getOrderIndex));
+
+            List<QuestionnaireSection> allSections = new ArrayList<>(saved.getSections());
+            allSections.sort(java.util.Comparator.comparing(QuestionnaireSection::getOrderIndex));
+
+            Map<Long, List<QuestionnaireItem>> itemsBySectionId = allSavedItems.stream()
+                    .filter(item -> item.getSection() != null && item.getSection().getId() != null)
+                    .collect(Collectors.groupingBy(item -> item.getSection().getId()));
+
+            for (QuestionnaireSection section : allSections) {
+                List<QuestionnaireItem> sectionItems = new ArrayList<>(
+                        itemsBySectionId.getOrDefault(section.getId(), List.of())
+                );
+                sectionItems.sort(java.util.Comparator.comparing(QuestionnaireItem::getOrderIndex));
+                section.setItems(new java.util.HashSet<>(sectionItems));
             }
+
+            List<QuestionnaireItem> looseQuestions = allQuestions.stream()
+                    .filter(item -> item.getSection() == null)
+                    .sorted(java.util.Comparator.comparing(QuestionnaireItem::getOrderIndex))
+                    .toList();
+
+            syncOrRebuildGoogleForm(saved, teacherId, looseQuestions, allSections);
         }
 
         log.info("Updated questionnaire {}", questionnaireId);
 
         return saved;
+    }
+
+    private void syncOrRebuildGoogleForm(Questionnaire questionnaire,
+                                         Long teacherId,
+                                         List<QuestionnaireItem> looseQuestions,
+                                         List<QuestionnaireSection> allSections) {
+        try {
+            googleFormsService.overwriteGoogleForm(
+                    teacherId,
+                    questionnaire.getGoogleFormId(),
+                    questionnaire.getTitle(),
+                    questionnaire.getDescription(),
+                    looseQuestions,
+                    allSections
+            );
+            syncGoogleQuestionMappings(questionnaire.getId(), teacherId);
+            return;
+        } catch (Exception overwriteError) {
+            log.error("Overwrite sync failed for questionnaire {}. Attempting recovery with replacement form.",
+                    questionnaire.getId(), overwriteError);
+        }
+
+        try {
+            Form replacementForm;
+            if (allSections != null && !allSections.isEmpty()) {
+                replacementForm = googleFormsService.createGoogleFormWithSections(
+                        teacherId,
+                        questionnaire.getTitle(),
+                        questionnaire.getDescription(),
+                        looseQuestions != null ? looseQuestions : List.of(),
+                        allSections
+                );
+            } else {
+                replacementForm = googleFormsService.createGoogleForm(
+                        teacherId,
+                        questionnaire.getTitle(),
+                        questionnaire.getDescription(),
+                        looseQuestions != null ? looseQuestions : List.of()
+                );
+            }
+
+            questionnaire.setGoogleFormId(replacementForm.getFormId());
+            questionnaire.setGoogleFormUrl(replacementForm.getResponderUri());
+            questionnaireRepository.save(questionnaire);
+            syncGoogleQuestionMappings(questionnaire.getId(), teacherId);
+            log.info("Recovered questionnaire {} by linking replacement Google Form {}",
+                    questionnaire.getId(), replacementForm.getFormId());
+        } catch (Exception rebuildError) {
+            throw new RuntimeException("Failed to sync questionnaire to Google Form: " + rebuildError.getMessage(), rebuildError);
+        }
+    }
+
+    private void syncGoogleQuestionMappings(Long questionnaireId, Long teacherId) {
+        Questionnaire questionnaire = questionnaireRepository.findById(questionnaireId)
+                .orElseThrow(() -> new RuntimeException("Questionnaire not found"));
+        if (questionnaire.getGoogleFormId() == null || questionnaire.getGoogleFormId().isBlank()) {
+            return;
+        }
+
+        Form form = googleFormsService.getFormById(teacherId, questionnaire.getGoogleFormId());
+        if (form == null || form.getItems() == null || form.getItems().isEmpty()) {
+            return;
+        }
+
+        // Build local order from repositories, not entity collections, to avoid stale
+        // in-memory section->items associations after section recreation during update.
+        List<QuestionnaireItem> allLocalItems = questionnaireItemRepository
+                .findByQuestionnaireIdOrderByOrderIndex(questionnaireId);
+        List<QuestionnaireSection> orderedSections = questionnaireSectionRepository
+                .findByQuestionnaireIdOrderByOrderIndex(questionnaireId);
+
+        List<QuestionnaireItem> localOrderedQuestions = allLocalItems.stream()
+                .filter(item -> item.getSection() == null)
+                .sorted(java.util.Comparator.comparing(QuestionnaireItem::getOrderIndex))
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        Map<Long, List<QuestionnaireItem>> itemsBySectionId = allLocalItems.stream()
+                .filter(item -> item.getSection() != null && item.getSection().getId() != null)
+                .collect(Collectors.groupingBy(item -> item.getSection().getId()));
+
+        for (QuestionnaireSection section : orderedSections) {
+            List<QuestionnaireItem> sectionItems = new ArrayList<>(
+                    itemsBySectionId.getOrDefault(section.getId(), List.of())
+            );
+            sectionItems.sort(java.util.Comparator.comparing(QuestionnaireItem::getOrderIndex));
+            localOrderedQuestions.addAll(sectionItems);
+        }
+
+        List<Item> googleQuestionItems = form.getItems().stream()
+                .filter(i -> i != null && i.getQuestionItem() != null && i.getQuestionItem().getQuestion() != null)
+                .toList();
+
+        int pairCount = Math.min(localOrderedQuestions.size(), googleQuestionItems.size());
+        for (int i = 0; i < pairCount; i++) {
+            QuestionnaireItem local = localOrderedQuestions.get(i);
+            Item remote = googleQuestionItems.get(i);
+            local.setGoogleFormItemId(remote.getItemId());
+            local.setGoogleQuestionId(remote.getQuestionItem().getQuestion().getQuestionId());
+        }
+        questionnaireItemRepository.saveAll(localOrderedQuestions);
+    }
+
+    private QuestionnaireItem findOrCreateQuestionnaireItem(Long itemId, Map<Long, QuestionnaireItem> existingItemsById) {
+        if (itemId == null) {
+            return new QuestionnaireItem();
+        }
+        return existingItemsById.getOrDefault(itemId, new QuestionnaireItem());
+    }
+
+    private void copyItemFields(CreateQuestionnaireRequest.QuestionnaireItemDto source,
+                                QuestionnaireItem target,
+                                int orderIndex,
+                                Questionnaire questionnaire,
+                                QuestionnaireSection section) {
+        target.setQuestionText(source.getQuestionText());
+        target.setQuestionType(QuestionnaireItem.QuestionType.valueOf(source.getQuestionType()));
+        target.setMaxScore(source.getMaxScore());
+        target.setMinScore(source.getMinScore());
+        target.setCorrectAnswer(source.getCorrectAnswer());
+        target.setPointsValue(source.getPointsValue() != null ? source.getPointsValue() : 1);
+        target.setRequired(source.getRequired() == null || source.getRequired());
+        target.setOrderIndex(orderIndex);
+        target.setQuestionnaire(questionnaire);
+        target.setSection(section);
+        if (source.getChoices() != null && !source.getChoices().isEmpty()) {
+            try {
+                target.setChoices(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(source.getChoices()));
+            } catch (Exception e) {
+                target.setChoices(null);
+            }
+        } else {
+            target.setChoices(null);
+        }
+    }
+
+    @Transactional
+    public Questionnaire duplicateQuestionnaire(Long questionnaireId, Long teacherId) {
+        Questionnaire original = questionnaireRepository.findById(questionnaireId)
+                .orElseThrow(() -> new RuntimeException("Questionnaire not found"));
+
+        if (!original.getCreatedByTeacher().getId().equals(teacherId)) {
+            throw new RuntimeException("You can only duplicate your own questionnaires");
+        }
+
+        List<QuestionnaireItem> looseQuestions = original.getItems().stream()
+                .filter(item -> item.getSection() == null)
+                .sorted(java.util.Comparator.comparing(QuestionnaireItem::getOrderIndex))
+                .map(this::cloneQuestionnaireItem)
+                .toList();
+
+        List<CreateQuestionnaireRequest.QuestionnaireSectionInputDto> sections = original.getSections().stream()
+                .sorted(java.util.Comparator.comparing(QuestionnaireSection::getOrderIndex))
+                .map(section -> {
+                    List<CreateQuestionnaireRequest.QuestionnaireItemDto> items = section.getItems().stream()
+                            .sorted(java.util.Comparator.comparing(QuestionnaireItem::getOrderIndex))
+                            .map(item -> {
+                                CreateQuestionnaireRequest.QuestionnaireItemDto dto = new CreateQuestionnaireRequest.QuestionnaireItemDto();
+                                dto.setQuestionText(item.getQuestionText());
+                                dto.setOrderIndex(item.getOrderIndex());
+                                dto.setQuestionType(item.getQuestionType().name());
+                                dto.setMaxScore(item.getMaxScore());
+                                dto.setMinScore(item.getMinScore());
+                                dto.setCorrectAnswer(item.getCorrectAnswer());
+                                dto.setPointsValue(item.getPointsValue());
+                                dto.setRequired(item.getRequired() == null || item.getRequired());
+                                if (item.getChoices() != null && !item.getChoices().isBlank()) {
+                                    try {
+                                        String[] parsed = new com.fasterxml.jackson.databind.ObjectMapper()
+                                                .readValue(item.getChoices(), String[].class);
+                                        dto.setChoices(List.of(parsed));
+                                    } catch (Exception ignored) {
+                                        dto.setChoices(List.of());
+                                    }
+                                }
+                                return dto;
+                            })
+                            .toList();
+                    CreateQuestionnaireRequest.QuestionnaireSectionInputDto dto = new CreateQuestionnaireRequest.QuestionnaireSectionInputDto();
+                    dto.setSectionTitle(section.getSectionTitle());
+                    dto.setSectionDescription(section.getSectionDescription());
+                    dto.setOrderIndex(section.getOrderIndex());
+                    dto.setItems(items);
+                    return dto;
+                })
+                .toList();
+
+        String duplicateTitle = original.getTitle().endsWith(" (Copy)")
+                ? original.getTitle()
+                : original.getTitle() + " (Copy)";
+
+        return createQuestionnaire(
+                teacherId,
+                duplicateTitle,
+                original.getDescription(),
+                looseQuestions,
+                sections,
+                original.getTarget() != null ? original.getTarget().name() : "ADVISER",
+                null);
+    }
+
+    private QuestionnaireItem cloneQuestionnaireItem(QuestionnaireItem source) {
+        QuestionnaireItem item = new QuestionnaireItem();
+        item.setQuestionText(source.getQuestionText());
+        item.setQuestionType(source.getQuestionType());
+        item.setMaxScore(source.getMaxScore());
+        item.setMinScore(source.getMinScore());
+        item.setChoices(source.getChoices());
+        item.setCorrectAnswer(source.getCorrectAnswer());
+        item.setPointsValue(source.getPointsValue());
+        item.setRequired(source.getRequired() == null || source.getRequired());
+        item.setOrderIndex(source.getOrderIndex());
+        return item;
     }
 
     /**

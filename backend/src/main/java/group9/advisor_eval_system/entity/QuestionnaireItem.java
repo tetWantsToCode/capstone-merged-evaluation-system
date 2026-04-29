@@ -43,6 +43,15 @@ public class QuestionnaireItem {
     
     @Column(nullable = true)
     private Integer pointsValue = 1; // Points for correct answer (default 1)
+
+    @Column(nullable = false)
+    private Boolean required = true;
+
+    @Column(nullable = true, length = 255)
+    private String googleFormItemId; // Google Forms item id
+
+    @Column(nullable = true, length = 255)
+    private String googleQuestionId; // Google Forms question id
     
     // Relationships
     @ManyToOne(fetch = FetchType.LAZY)

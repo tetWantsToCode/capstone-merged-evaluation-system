@@ -227,13 +227,12 @@ public class GoogleFormsService {
             // 2. Update Form Info (Title and Description)
             Info info = new Info();
             info.setTitle(title);
-            info.setDocumentTitle(title);
             if (description != null) {
                 info.setDescription(description);
             }
             UpdateFormInfoRequest updateInfo = new UpdateFormInfoRequest()
                     .setInfo(info)
-                    .setUpdateMask(description != null ? "title,documentTitle,description" : "title,documentTitle");
+                    .setUpdateMask(description != null ? "title,description" : "title");
             batchRequests.add(new Request().setUpdateFormInfo(updateInfo));
 
             // 3. Delete all existing items
@@ -264,6 +263,20 @@ public class GoogleFormsService {
         } catch (Exception e) {
             log.error("Error overwriting Google Form", e);
             throw new RuntimeException("Failed to sync updates to Google Form: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Fetch a Google Form by id for mapping synchronization.
+     */
+    public Form getFormById(Long teacherId, String formId) {
+        try {
+            String accessToken = googleAuthService.getValidAccessToken(teacherId);
+            Forms formsService = getFormsService(accessToken);
+            return formsService.forms().get(formId).execute();
+        } catch (Exception e) {
+            log.error("Error fetching Google Form {}", formId, e);
+            throw new RuntimeException("Failed to fetch Google Form: " + e.getMessage(), e);
         }
     }
 
@@ -375,7 +388,7 @@ public class GoogleFormsService {
         // Don't set questionId - Google Forms will auto-generate it
 
         // Set question text
-        question.setRequired(true);
+        question.setRequired(item.getRequired() == null || item.getRequired());
 
         switch (item.getQuestionType()) {
             case NUMERIC_SCALE:

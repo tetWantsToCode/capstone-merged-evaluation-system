@@ -21,6 +21,9 @@ public class QuestionnaireItemDto {
     private Integer maxScore;
     private Integer minScore;
     private List<String> choices;
+    private Boolean required;
+    private String googleFormItemId;
+    private String googleQuestionId;
     
     public static QuestionnaireItemDto fromEntity(QuestionnaireItem item) {
         if (item == null) {
@@ -34,6 +37,9 @@ public class QuestionnaireItemDto {
         dto.setQuestionType(item.getQuestionType() != null ? item.getQuestionType().name() : "TEXT");
         dto.setMaxScore(item.getMaxScore());
         dto.setMinScore(item.getMinScore());
+        dto.setRequired(item.getRequired() == null || item.getRequired());
+        dto.setGoogleFormItemId(item.getGoogleFormItemId());
+        dto.setGoogleQuestionId(item.getGoogleQuestionId());
         
         // Parse choices from JSON string to List with null safety
         if (item.getChoices() != null && !item.getChoices().trim().isEmpty()) {

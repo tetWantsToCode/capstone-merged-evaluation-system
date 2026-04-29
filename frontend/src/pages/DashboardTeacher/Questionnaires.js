@@ -8,6 +8,18 @@ import QuestionnaireDetailModal from "./QuestionnaireDetailModal";
 import "./Teacher.css";
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/api').replace(/\/api\/?$/, '');
+const LOCAL_API_BASE_URL = 'http://localhost:8080';
+
+const fetchWithLocalFallback = async (path, options = {}) => {
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, options);
+  } catch (error) {
+    if (API_BASE_URL === LOCAL_API_BASE_URL) {
+      throw error;
+    }
+    return fetch(`${LOCAL_API_BASE_URL}${path}`, options);
+  }
+};
 
 const Questionnaires = () => {
   const toast = useToast();
@@ -44,7 +56,7 @@ const Questionnaires = () => {
         return false;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/google-auth/status`, {
+      const response = await fetchWithLocalFallback('/api/google-auth/status', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -147,6 +159,16 @@ const Questionnaires = () => {
       await fetchQuestionnaires();
     } catch (err) {
       toast.error('Error updating class assignments: ' + err.message);
+    }
+  };
+
+  const handleDuplicateQuestionnaire = async (questionnaire) => {
+    try {
+      await questionnaireAPI.duplicateQuestionnaire(questionnaire.id);
+      toast.success('Questionnaire duplicated successfully!');
+      await fetchQuestionnaires();
+    } catch (err) {
+      toast.error('Error duplicating questionnaire: ' + err.message);
     }
   };
 
@@ -261,6 +283,12 @@ const Questionnaires = () => {
                           onClick={() => openDetailsModal(q.id)}
                         >
                           View Details
+                        </button>
+                        <button
+                          className="btn btn-sm"
+                          onClick={() => handleDuplicateQuestionnaire(q)}
+                        >
+                          Duplicate
                         </button>
                         <button
                           className="btn btn-sm btn-assign"

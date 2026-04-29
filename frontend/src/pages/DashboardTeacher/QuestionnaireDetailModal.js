@@ -25,7 +25,8 @@ const QuestionnaireDetailModal = ({ isOpen, onClose, questionnaireId, onUpdate }
     maxScore: 5,
     choices: [],
     correctAnswer: "",
-    pointsValue: 1
+    pointsValue: 1,
+    required: true,
   });
 
   useEffect(() => {
@@ -119,7 +120,8 @@ const QuestionnaireDetailModal = ({ isOpen, onClose, questionnaireId, onUpdate }
       maxScore: 5,
       choices: [],
       correctAnswer: "",
-      pointsValue: 1
+      pointsValue: 1,
+      required: true,
     });
     toast.success("Question added!");
   };
@@ -269,6 +271,7 @@ const QuestionnaireDetailModal = ({ isOpen, onClose, questionnaireId, onUpdate }
                               <div style={{ fontSize: '11px', color: 'var(--dtm-muted)', marginTop: '4px' }}>
                                 Type: {q.questionType} 
                                 {(q.questionType === 'NUMERIC_SCALE' || q.questionType === 'RATING') && ` | Range: ${q.minScore} - ${q.maxScore}`}
+                                {` | ${q.required === false ? 'Optional' : 'Required'}`}
                               </div>
                             </div>
                           ))}
@@ -338,33 +341,25 @@ const QuestionnaireDetailModal = ({ isOpen, onClose, questionnaireId, onUpdate }
 
                           {/* Section Navigation */}
                           <div style={{ marginBottom: '8px' }}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            <div className="section-tabs">
                               {formData.sections.map((section, idx) => (
                                 <div key={idx} style={{ position: 'relative' }}>
                                   <button
                                     type="button"
+                                    className={`section-tab ${activeSectionIndex === idx ? 'active' : ''}`}
                                     onClick={() => setActiveSectionIndex(idx)}
-                                    style={{
-                                      padding: '6px 10px',
-                                      backgroundColor: activeSectionIndex === idx ? 'linear-gradient(135deg, rgba(138, 21, 31, 0.8), rgba(138, 21, 31, 0.5))' : 'rgba(138, 21, 31, 0.3)',
-                                      color: activeSectionIndex === idx ? 'var(--dtm-gold)' : 'var(--dtm-muted)',
-                                      border: activeSectionIndex === idx ? '1px solid var(--dtm-gold)' : '1px solid rgba(242, 201, 76, 0.2)',
-                                      borderRadius: '4px',
-                                      cursor: 'pointer',
-                                      fontWeight: activeSectionIndex === idx ? '600' : '500',
-                                      fontSize: '11px'
-                                    }}
                                   >
                                     {section.sectionTitle || `Section ${idx + 1}`}
                                   </button>
                                   {formData.sections.length > 1 && activeSectionIndex === idx && (
                                     <button
                                       type="button"
+                                      className="btn btn-sm btn-danger"
                                       onClick={(e) => { e.stopPropagation(); handleRemoveSection(idx); }}
-                                      style={{ position: 'absolute', right: '-8px', top: '-8px', width: '18px', height: '18px', borderRadius: '50%', background: 'var(--dtm-maroon)', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}
+                                      style={{ position: 'absolute', right: '-8px', top: '-10px', width: '22px', height: '22px', borderRadius: '999px', padding: 0, minHeight: 'unset', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                       title="Delete Section"
                                     >
-                                      &times;
+                                      ×
                                     </button>
                                   )}
                                 </div>
@@ -456,6 +451,19 @@ const QuestionnaireDetailModal = ({ isOpen, onClose, questionnaireId, onUpdate }
                                         />
                                       </div>
                                     )}
+
+                                    <select
+                                      value={q.required === false ? 'OPTIONAL' : 'REQUIRED'}
+                                      onChange={(e) => {
+                                        const updatedSections = [...formData.sections];
+                                        updatedSections[activeSectionIndex].items[qIdx].required = e.target.value === 'REQUIRED';
+                                        setFormData({ ...formData, sections: updatedSections });
+                                      }}
+                                      style={{ fontSize: '11px', minWidth: '105px', padding: '6px' }}
+                                    >
+                                      <option value="REQUIRED">Required</option>
+                                      <option value="OPTIONAL">Optional</option>
+                                    </select>
                                   </div>
                                 </div>
                               ))}
@@ -665,7 +673,17 @@ const QuestionnaireDetailModal = ({ isOpen, onClose, questionnaireId, onUpdate }
                             </div>
                           )}
 
-                          <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '4px' }}>
+                          <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '8px' }}>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label>Requirement</label>
+                              <select
+                                value={newQuestion.required ? 'REQUIRED' : 'OPTIONAL'}
+                                onChange={(e) => setNewQuestion({ ...newQuestion, required: e.target.value === 'REQUIRED' })}
+                              >
+                                <option value="REQUIRED">Required</option>
+                                <option value="OPTIONAL">Optional</option>
+                              </select>
+                            </div>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '4px' }}>
                               <div className="form-group" style={{ flex: 1, margin: 0 }}>
                                 <label style={{ marginBottom: '3px' }}>Correct Answer (Optional)</label>

@@ -6,6 +6,18 @@ import AdviserSidebar from '../../components/Sidebar/AdviserSidebar';
 import './Profile.css';
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/api').replace(/\/api\/?$/, '');
+const LOCAL_API_BASE_URL = 'http://localhost:8080';
+
+const fetchWithLocalFallback = async (path, options = {}) => {
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, options);
+  } catch (error) {
+    if (API_BASE_URL === LOCAL_API_BASE_URL) {
+      throw error;
+    }
+    return fetch(`${LOCAL_API_BASE_URL}${path}`, options);
+  }
+};
 
 const Profile = () => {
   const toast = useToast();
@@ -56,7 +68,7 @@ const Profile = () => {
 
     try {
       setGoogleStatus((prev) => ({ ...prev, loading: true }));
-      const res = await fetch(`${API_BASE_URL}/api/google-auth/status`, {
+      const res = await fetchWithLocalFallback('/api/google-auth/status', {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -90,7 +102,7 @@ const Profile = () => {
     try {
       setGoogleStatus((prev) => ({ ...prev, loading: true }));
 
-      const res = await fetch(`${API_BASE_URL}/api/google-auth/authorization-url`, {
+      const res = await fetchWithLocalFallback('/api/google-auth/authorization-url', {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,

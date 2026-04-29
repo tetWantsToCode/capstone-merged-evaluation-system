@@ -19,6 +19,24 @@ const throwApiError = async (response, fallbackMessage) => {
   throw new Error(msg || `${fallbackMessage} (HTTP ${response.status})`);
 };
 
+const LOCAL_API_FALLBACK_URL = 'http://localhost:8080/api';
+
+const shouldUseLocalFallback = () => API_BASE_URL !== LOCAL_API_FALLBACK_URL;
+
+const fetchQuestionnaireWithFallback = async (path, options = {}) => {
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, options);
+  } catch (error) {
+    if (!shouldUseLocalFallback()) {
+      throw error;
+    }
+
+    // Some local setups accidentally point to an HTTPS endpoint with an untrusted cert.
+    // Retry against local HTTP so questionnaires still load during development.
+    return await fetch(`${LOCAL_API_FALLBACK_URL}${path}`, options);
+  }
+};
+
 // Helper function to get auth token
 const getAuthToken = () => {
   const userStr = localStorage.getItem('user');
@@ -369,7 +387,7 @@ export const evaluationAPI = {
 // Questionnaires API
 export const questionnaireAPI = {
   getAllQuestionnaires: async () => {
-    const response = await fetch(`${API_BASE_URL}/questionnaires`, {
+    const response = await fetchQuestionnaireWithFallback('/questionnaires', {
       method: 'GET',
       headers: getHeaders(),
     });
@@ -382,7 +400,7 @@ export const questionnaireAPI = {
   },
   
   getQuestionnaireById: async (id) => {
-    const response = await fetch(`${API_BASE_URL}/questionnaires/${id}`, {
+    const response = await fetchQuestionnaireWithFallback(`/questionnaires/${id}`, {
       method: 'GET',
       headers: getHeaders(),
     });
@@ -395,7 +413,7 @@ export const questionnaireAPI = {
   },
   
   getQuestionnairesByClass: async (classId) => {
-    const response = await fetch(`${API_BASE_URL}/questionnaires/class/${classId}`, {
+    const response = await fetchQuestionnaireWithFallback(`/questionnaires/class/${classId}`, {
       method: 'GET',
       headers: getHeaders(),
     });
@@ -408,7 +426,7 @@ export const questionnaireAPI = {
   },
 
   getQuestionnairesByClassForTeacher: async (classId) => {
-    const response = await fetch(`${API_BASE_URL}/questionnaires/class/${classId}/teacher`, {
+    const response = await fetchQuestionnaireWithFallback(`/questionnaires/class/${classId}/teacher`, {
       method: 'GET',
       headers: getHeaders(),
     });
@@ -421,7 +439,7 @@ export const questionnaireAPI = {
   },
   
   createQuestionnaire: async (questionnaireData) => {
-    const response = await fetch(`${API_BASE_URL}/questionnaires`, {
+    const response = await fetchQuestionnaireWithFallback('/questionnaires', {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(questionnaireData),
@@ -436,7 +454,7 @@ export const questionnaireAPI = {
   },
   
   updateQuestionnaire: async (id, questionnaireData) => {
-    const response = await fetch(`${API_BASE_URL}/questionnaires/${id}`, {
+    const response = await fetchQuestionnaireWithFallback(`/questionnaires/${id}`, {
       method: 'PUT',
       headers: getHeaders(),
       body: JSON.stringify(questionnaireData),
@@ -450,8 +468,22 @@ export const questionnaireAPI = {
     return await response.json();
   },
 
+  duplicateQuestionnaire: async (id) => {
+    const response = await fetchQuestionnaireWithFallback(`/questionnaires/${id}/duplicate`, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Failed to duplicate questionnaire' }));
+      throw new Error(error.message || 'Failed to duplicate questionnaire');
+    }
+
+    return await response.json();
+  },
+
   updateQuestionnaireStatus: async (id, isActive) => {
-    const response = await fetch(`${API_BASE_URL}/questionnaires/${id}/status`, {
+    const response = await fetchQuestionnaireWithFallback(`/questionnaires/${id}/status`, {
       method: 'PUT',
       headers: getHeaders(),
       body: JSON.stringify({ isActive }),
@@ -466,7 +498,7 @@ export const questionnaireAPI = {
   },
   
   deleteQuestionnaire: async (id) => {
-    const response = await fetch(`${API_BASE_URL}/questionnaires/${id}`, {
+    const response = await fetchQuestionnaireWithFallback(`/questionnaires/${id}`, {
       method: 'DELETE',
       headers: getHeaders(),
     });
@@ -480,7 +512,7 @@ export const questionnaireAPI = {
   },
   
   assignToClasses: async (id, classIds) => {
-    const response = await fetch(`${API_BASE_URL}/questionnaires/${id}/assign`, {
+    const response = await fetchQuestionnaireWithFallback(`/questionnaires/${id}/assign`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ classIds }),
@@ -495,7 +527,7 @@ export const questionnaireAPI = {
   },
   
   unassignFromClasses: async (id, classIds) => {
-    const response = await fetch(`${API_BASE_URL}/questionnaires/${id}/unassign`, {
+    const response = await fetchQuestionnaireWithFallback(`/questionnaires/${id}/unassign`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ classIds }),
