@@ -3,6 +3,8 @@ import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { studentAPI, classAPI } from "../../services/api";
 import { useToast } from "../../contexts/ToastContext";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
+import { usePagination } from "../../hooks/usePagination";
+import Pagination from "../../components/Pagination/Pagination";
 import "./Teacher.css";
 
 const StudentManagement = () => {
@@ -31,6 +33,8 @@ const StudentManagement = () => {
     email: '',
     classIds: []
   });
+
+  const { currentPage, totalPages, paginatedData, goToPage } = usePagination(students, 10);
 
   useEffect(() => {
     fetchStudents();
@@ -201,6 +205,7 @@ const StudentManagement = () => {
           {loading ? (
             <p>Loading students...</p>
           ) : (
+            <>
             <table className="class-table">
               <thead>
                 <tr>
@@ -218,7 +223,7 @@ const StudentManagement = () => {
                     <td colSpan="6" style={{ textAlign: 'center' }}>No students found</td>
                   </tr>
                 ) : (
-                  students.map((student) => (
+                  paginatedData.map((student) => (
                     <tr key={student.id}>
                       <td>{student.studentId}</td>
                       <td>{student.firstName}</td>
@@ -248,6 +253,8 @@ const StudentManagement = () => {
                 )}
               </tbody>
             </table>
+            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
+            </>
           )}
         </div>
 

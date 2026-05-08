@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AdviserSidebar from "../../components/Sidebar/AdviserSidebar";
 import { teamAPI } from "../../services/api";
+import { usePagination } from "../../hooks/usePagination";
+import Pagination from "../../components/Pagination/Pagination";
 import "./Adviser.css";
 
 const Adviser = () => {
@@ -31,6 +33,8 @@ const Adviser = () => {
 
     loadTeams();
   }, [currentUser]);
+
+  const { currentPage, totalPages, paginatedData, goToPage } = usePagination(teams, 10);
 
   const activeTeams = teams.filter((team) => team.isActive).length;
   const inactiveTeams = Math.max(0, teams.length - activeTeams);
@@ -78,6 +82,7 @@ const Adviser = () => {
           </div>
 
           {loading ? <p>Loading...</p> : (
+            <>
             <table className="class-table">
               <thead>
                 <tr>
@@ -85,13 +90,13 @@ const Adviser = () => {
                   <th>Team</th>
                   <th>Members</th>
                   <th>Status</th>
-                  <th>Action</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {teams.map((team, index) => (
+                {paginatedData.map((team, index) => (
                   <tr key={team.id}>
-                    <td>{index + 1}</td>
+                    <td>{(currentPage - 1) * 10 + index + 1}</td>
                     <td><strong>{team.name}</strong></td>
                     <td>{team.memberIds?.length || 0}</td>
                     <td>
@@ -100,17 +105,27 @@ const Adviser = () => {
                       </span>
                     </td>
                     <td>
-                      <button
-                        className="btn adviser-open-btn"
-                        onClick={() => navigate(`/adviser/evaluations/${team.id}`)}
-                      >
-                        Open Evaluations
-                      </button>
+                      <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                        <button
+                          className="btn adviser-open-btn"
+                          onClick={() => navigate(`/adviser/evaluations/${team.id}`)}
+                        >
+                          Team Evaluations
+                        </button>
+                        <button
+                          className="btn-secondary adviser-open-btn"
+                          onClick={() => navigate(`/adviser/student-evaluations/${team.id}`)}
+                        >
+                          Student Evaluations
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
+            </>
           )}
         </div>
       </div>

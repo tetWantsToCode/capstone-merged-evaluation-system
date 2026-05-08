@@ -18,6 +18,7 @@ public class QuestionnaireSectionDto {
     private String sectionTitle;
     private String sectionDescription;
     private Integer orderIndex;
+    private Boolean evaluateIndividuals;
     private List<QuestionnaireItemDto> items;
     
     public static QuestionnaireSectionDto fromEntity(QuestionnaireSection section) {
@@ -30,6 +31,7 @@ public class QuestionnaireSectionDto {
         dto.setSectionTitle(section.getSectionTitle());
         dto.setSectionDescription(section.getSectionDescription());
         dto.setOrderIndex(section.getOrderIndex());
+        dto.setEvaluateIndividuals(section.getEvaluateIndividuals() != null ? section.getEvaluateIndividuals() : false);
         
         // Convert items to DTOs
         if (section.getItems() != null && !section.getItems().isEmpty()) {

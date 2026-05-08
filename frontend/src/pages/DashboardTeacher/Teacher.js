@@ -5,6 +5,8 @@ import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import SummaryCard from "../../components/Cards/SummaryCard";
 import PendingEvaluationsModal from "../../components/Modal/PendingEvaluationsModal";
 import { classAPI, studentAPI, teamAPI, questionnaireAPI, teacherReportAPI } from "../../services/api";
+import { usePagination } from "../../hooks/usePagination";
+import Pagination from "../../components/Pagination/Pagination";
 import "./Teacher.css";
 
 const Teacher = () => {
@@ -144,6 +146,17 @@ const Teacher = () => {
     return students.filter(s => s && memberIdStrings.includes(String(s.id)));
   };
 
+  const { currentPage: curPageClasses, totalPages: totPageClasses, paginatedData: pagClasses, goToPage: goPageClasses } = usePagination(filteredClasses, 10);
+  
+  const teamsForSelectedClass = selectedClass ? getTeamsForClass(selectedClass.id) : [];
+  const { currentPage: curPageTeams, totalPages: totPageTeams, paginatedData: pagTeams, goToPage: goPageTeams } = usePagination(teamsForSelectedClass, 10);
+
+  const questForSelectedClass = selectedClass ? getQuestionnairesForClass(selectedClass.id) : [];
+  const { currentPage: curPageQuest, totalPages: totPageQuest, paginatedData: pagQuest, goToPage: goPageQuest } = usePagination(questForSelectedClass, 10);
+
+  const studentsForSelectedTeam = selectedTeam ? getStudentsForTeam(selectedTeam) : [];
+  const { currentPage: curPageStud, totalPages: totPageStud, paginatedData: pagStud, goToPage: goPageStud } = usePagination(studentsForSelectedTeam, 10);
+
   const handleViewTeamMembers = (team) => {
     setSelectedTeam(team);
     setShowTeamMembersModal(true);
@@ -194,7 +207,7 @@ const Teacher = () => {
           ) : filteredClasses.length === 0 ? (
             <p>No classes matched your current filter.</p>
           ) : (
-
+          <>
           <table className="class-table">
             <thead>
               <tr>
@@ -210,13 +223,13 @@ const Teacher = () => {
             </thead>
 
             <tbody>
-              {filteredClasses.map((c, index) => {
+              {pagClasses.map((c, index) => {
                 const questionnaireCount = getQuestionnairesForClass(c.id).length;
                 const hasQuestionnaire = questionnaireCount > 0;
 
                 return (
                 <tr key={c.id}>
-                  <td>{index + 1}</td>
+                  <td>{(curPageClasses - 1) * 10 + index + 1}</td>
                   <td>{c.name}</td>
                   <td>{c.section || "N/A"}</td>
                   <td>{c.schoolYear}</td>
@@ -242,6 +255,8 @@ const Teacher = () => {
               );})}
             </tbody>
           </table>
+          <Pagination currentPage={curPageClasses} totalPages={totPageClasses} onPageChange={goPageClasses} />
+          </>
 
           )}
         </div>
@@ -269,6 +284,7 @@ const Teacher = () => {
               {getTeamsForClass(selectedClass.id).length === 0 ? (
                 <p>No teams in this class yet.</p>
               ) : (
+                <>
                 <table className="class-table" style={{ marginTop: "10px" }}>
                   <thead>
                     <tr>
@@ -281,7 +297,7 @@ const Teacher = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {getTeamsForClass(selectedClass.id).map((team) => (
+                    {pagTeams.map((team) => (
                       <tr key={team.id}>
                         <td>{team.name}</td>
                         <td>{team.description || "N/A"}</td>
@@ -307,6 +323,8 @@ const Teacher = () => {
                     ))}
                   </tbody>
                 </table>
+                <Pagination currentPage={curPageTeams} totalPages={totPageTeams} onPageChange={goPageTeams} />
+                </>
               )}
             </div>
 
@@ -318,6 +336,7 @@ const Teacher = () => {
               {getQuestionnairesForClass(selectedClass.id).length === 0 ? (
                 <p>No questionnaires assigned to this class yet.</p>
               ) : (
+                <>
                 <table className="class-table" style={{ marginTop: "10px" }}>
                   <thead>
                     <tr>
@@ -330,7 +349,7 @@ const Teacher = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {getQuestionnairesForClass(selectedClass.id).map((questionnaire) => (
+                    {pagQuest.map((questionnaire) => (
                       <tr key={questionnaire.id}>
                         <td>{questionnaire.title}</td>
                         <td>{questionnaire.description || "N/A"}</td>
@@ -353,6 +372,8 @@ const Teacher = () => {
                     ))}
                   </tbody>
                 </table>
+                <Pagination currentPage={curPageQuest} totalPages={totPageQuest} onPageChange={goPageQuest} />
+                </>
               )}
             </div>
 
@@ -384,9 +405,9 @@ const Teacher = () => {
                 </div>
               ) : (
                 <div style={{
-                  maxHeight: "400px",
+                  maxHeight: "450px",
                   overflowY: "auto",
-                  border: "1px solid #e0e0e0",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
                   borderRadius: "4px"
                 }}>
                   <table className="class-table">
@@ -399,7 +420,7 @@ const Teacher = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {getStudentsForTeam(selectedTeam).map((student) => (
+                      {pagStud.map((student) => (
                         <tr key={student.id}>
                           <td>{student.studentId}</td>
                           <td>{student.firstName} {student.lastName}</td>
@@ -409,6 +430,7 @@ const Teacher = () => {
                       ))}
                     </tbody>
                   </table>
+                  <Pagination currentPage={curPageStud} totalPages={totPageStud} onPageChange={goPageStud} />
                 </div>
               )}
             </div>

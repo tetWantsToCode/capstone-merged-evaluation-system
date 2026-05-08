@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { userManagementAPI } from "../../services/api";
 import { useToast } from "../../contexts/ToastContext";
+import { usePagination } from "../../hooks/usePagination";
+import Pagination from "../../components/Pagination/Pagination";
 import "./Teacher.css";
 
 const Advisers = () => {
@@ -9,6 +11,8 @@ const Advisers = () => {
   const [advisers, setAdvisers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const { currentPage, totalPages, paginatedData, goToPage } = usePagination(advisers, 10);
 
   useEffect(() => {
     fetchAdvisers();
@@ -46,6 +50,7 @@ const Advisers = () => {
           {loading ? (
             <p>Loading advisers...</p>
           ) : (
+            <>
             <table className="class-table">
               <thead>
                 <tr>
@@ -59,7 +64,7 @@ const Advisers = () => {
                     <td colSpan="2" style={{ textAlign: 'center' }}>No advisers found</td>
                   </tr>
                 ) : (
-                  advisers.map((adviser) => (
+                  paginatedData.map((adviser) => (
                     <tr key={adviser.id}>
                       <td>{adviser.firstName && adviser.lastName ? `${adviser.firstName} ${adviser.lastName}` : '—'}</td>
                       <td>{adviser.email}</td>
@@ -68,6 +73,8 @@ const Advisers = () => {
                 )}
               </tbody>
             </table>
+            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
+            </>
           )}
         </div>
       </div>

@@ -49,7 +49,7 @@ public class EvaluationScore {
     private Evaluation evaluation;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "questionnaire_item_id", nullable = false)
+    @JoinColumn(name = "questionnaire_item_id", nullable = true)
     @JsonIgnore
     @lombok.ToString.Exclude
     @lombok.EqualsAndHashCode.Exclude

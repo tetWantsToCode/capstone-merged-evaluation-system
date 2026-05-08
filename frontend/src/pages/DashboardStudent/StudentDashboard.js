@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import StudentSidebar from "../../components/Sidebar/StudentSidebar";
 import { useToast } from "../../contexts/ToastContext";
+import { usePagination } from "../../hooks/usePagination";
+import Pagination from "../../components/Pagination/Pagination";
 import "../DashboardTeacher/Teacher.css";
+import "./StudentResponsive.css";
 
 const API_BASE_URL = "http://localhost:8080";
 
@@ -95,6 +98,8 @@ const StudentDashboard = () => {
     });
   }, [questionnaires, statusFilter, searchTerm]);
 
+  const { currentPage, totalPages, paginatedData, goToPage } = usePagination(filteredQuestionnaires, 10);
+
   const studentName = [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(" ") || "Student";
 
   return (
@@ -158,7 +163,8 @@ const StudentDashboard = () => {
           ) : questionnaires.length === 0 ? (
             <p style={{ marginTop: 20, color: 'var(--dtm-muted)' }}>You have no assigned questionnaires at this time.</p>
           ) : (
-            <table className="class-table">
+            <div className="table-responsive">
+              <table className="class-table">
               <thead>
                 <tr>
                   <th>#</th>
@@ -172,7 +178,7 @@ const StudentDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredQuestionnaires.map((q, idx) => {
+                {paginatedData.map((q, idx) => {
                   const isMissed = Boolean(q.isMissed);
                   const completed = q.peerTasks?.filter(t => t.status === 'SUBMITTED').length || 0;
                   const total = q.peerTasks?.length || 0;
@@ -182,10 +188,10 @@ const StudentDashboard = () => {
 
                   return (
                     <tr key={q.id}>
-                      <td>{idx + 1}</td>
-                      <td><strong>{q.title}</strong></td>
-                      <td>{q.description || "No description"}</td>
-                      <td>
+                      <td data-label="#">{(currentPage - 1) * 10 + idx + 1}</td>
+                      <td data-label="Title"><strong>{q.title}</strong></td>
+                      <td data-label="Description">{q.description || "No description"}</td>
+                      <td data-label="Status">
                         {isMissed ? (
                           <span className="status-badge status-inactive">Missed</span>
                         ) : isComplete ? (
@@ -196,7 +202,7 @@ const StudentDashboard = () => {
                           <span className="status-badge status-active">Ready</span>
                         )}
                       </td>
-                      <td>
+                      <td data-label="Progress">
                         <div className="adviser-progress-wrap">
                           <div className="adviser-progress-track">
                             <div className="adviser-progress-fill" style={{ width: `${progressPercent}%` }}></div>
@@ -206,11 +212,11 @@ const StudentDashboard = () => {
                           </span>
                         </div>
                       </td>
-                      <td>{new Date(q.createdAt).toLocaleDateString()}</td>
-                      <td style={{ whiteSpace: 'nowrap', color: q.deadlineAt ? 'inherit' : 'var(--dtm-muted)' }}>
+                      <td data-label="Assigned Date">{new Date(q.createdAt).toLocaleDateString()}</td>
+                      <td data-label="Deadline" style={{ whiteSpace: 'nowrap', color: q.deadlineAt ? 'inherit' : 'var(--dtm-muted)' }}>
                         {formatDeadline(q.deadlineAt)}
                       </td>
-                      <td>
+                      <td data-label="Action">
                         {isMissed ? (
                           <span style={{ color: '#f87171', fontSize: '0.85rem', fontWeight: 600 }}>
                             Deadline passed
@@ -230,7 +236,9 @@ const StudentDashboard = () => {
                   );
                 })}
               </tbody>
-            </table>
+              </table>
+              <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
+            </div>
           )}
         </div>
       </div>

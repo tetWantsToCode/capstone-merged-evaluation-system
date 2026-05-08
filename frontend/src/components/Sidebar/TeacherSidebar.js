@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { authAPI } from "../../services/api";
-import { LayoutDashboard, GraduationCap, UserCheck, ClipboardList, BarChart2, Users } from "lucide-react";
+import { LayoutDashboard, GraduationCap, UserCheck, ClipboardList, BarChart2, TrendingUp, Users } from "lucide-react";
 import "./Sidebar.css";
 
 const TeacherSidebar = () => {
@@ -50,6 +50,7 @@ const TeacherSidebar = () => {
     { label: "Advisers", icon: UserCheck, path: "/teacher/advisers" },
     { label: "Questionnaires", icon: ClipboardList, path: "/teacher/questionnaires" },
     { label: "Reports", icon: BarChart2, path: "/teacher/reports" },
+    { label: "Performance", icon: TrendingUp, path: "/teacher/performance" },
     { label: "User Management", icon: Users, path: "/teacher/user-management" },
   ];
 

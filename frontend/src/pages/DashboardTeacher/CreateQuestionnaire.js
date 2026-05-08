@@ -7,6 +7,18 @@ import "./Teacher.css";
 import "./QuestionnaireTwoColumn.css";
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/api').replace(/\/api\/?$/, '');
+const LOCAL_API_BASE_URL = 'http://localhost:8080';
+
+const fetchWithLocalFallback = async (path, options = {}) => {
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, options);
+  } catch (error) {
+    if (API_BASE_URL === LOCAL_API_BASE_URL) {
+      throw error;
+    }
+    return fetch(`${LOCAL_API_BASE_URL}${path}`, options);
+  }
+};
 
 const CreateQuestionnaire = () => {
   const navigate = useNavigate();
@@ -23,6 +35,7 @@ const CreateQuestionnaire = () => {
         sectionTitle: "Section 1",
         sectionDescription: "",
         orderIndex: 0,
+        evaluateIndividuals: false,
         items: []
       }
     ],
@@ -32,6 +45,7 @@ const CreateQuestionnaire = () => {
   const [newSection, setNewSection] = useState({
     sectionTitle: "",
     sectionDescription: "",
+    evaluateIndividuals: false,
     items: []
   });
 
@@ -42,10 +56,12 @@ const CreateQuestionnaire = () => {
     maxScore: 5,
     choices: [],
     correctAnswer: "",
-    pointsValue: 1
+    pointsValue: 1,
+    required: true,
   });
 
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
+  const [editingQuestionIndex, setEditingQuestionIndex] = useState(null);
   const [usesSections, setUsesSections] = useState(true);
 
   useEffect(() => {
@@ -61,7 +77,7 @@ const CreateQuestionnaire = () => {
         return false;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/google-auth/status`, {
+      const response = await fetchWithLocalFallback('/api/google-auth/status', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -140,21 +156,37 @@ const CreateQuestionnaire = () => {
 
     if (activeSectionIndex !== null) {
       const updatedSections = [...formData.sections];
-      updatedSections[activeSectionIndex].items.push({ ...newQuestion });
+      
+      if (editingQuestionIndex !== null) {
+        updatedSections[activeSectionIndex].items[editingQuestionIndex] = { ...newQuestion };
+        setEditingQuestionIndex(null);
+      } else {
+        updatedSections[activeSectionIndex].items.push({ ...newQuestion });
+      }
+      
       setFormData({ ...formData, sections: updatedSections });
     }
 
     setNewQuestion({
       questionText: "",
-      questionType: "NUMERIC_SCALE",
+      questionType: formData.target === 'STUDENT' ? "RATING" : "NUMERIC_SCALE",
       minScore: 1,
-      maxScore: 5,
+      maxScore: formData.target === 'STUDENT' ? 10 : 5,
       choices: [],
       correctAnswer: "",
-      pointsValue: 1
+      pointsValue: 1,
+      required: true,
     });
 
-    toast.success('Question added!');
+    toast.success(editingQuestionIndex !== null ? 'Question updated!' : 'Question added!');
+  };
+
+  const handleEditQuestion = (index) => {
+    if (activeSectionIndex !== null) {
+      const q = formData.sections[activeSectionIndex].items[index];
+      setNewQuestion({ ...q });
+      setEditingQuestionIndex(index);
+    }
   };
 
   const handleRemoveQuestion = (index) => {
@@ -215,6 +247,7 @@ const CreateQuestionnaire = () => {
           sectionTitle: `Section ${newSectionNumber}`,
           sectionDescription: "",
           orderIndex: formData.sections.length,
+          evaluateIndividuals: false,
           items: []
         }
       ]
@@ -288,6 +321,31 @@ const CreateQuestionnaire = () => {
                       style={{ padding: '8px 10px', fontSize: '11px', width: '100%', boxSizing: 'border-box' }}
                     />
                   </div>
+
+                  {formData.target !== 'STUDENT' && (
+                    <div className="form-group" style={{ marginBottom: '8px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--dtm-gold)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={formData.sections[activeSectionIndex].evaluateIndividuals || false}
+                          onChange={(e) => {
+                            const updatedSections = [...formData.sections];
+                            updatedSections[activeSectionIndex].evaluateIndividuals = e.target.checked;
+                            setFormData({ ...formData, sections: updatedSections });
+                            // If enabling individual eval and current question type is not compatible, reset to RATING
+                            if (e.target.checked && !['RATING', 'TEXT'].includes(newQuestion.questionType)) {
+                              setNewQuestion({ ...newQuestion, questionType: 'RATING', maxScore: 10 });
+                            }
+                          }}
+                          style={{ width: '14px', height: '14px', cursor: 'pointer' }}
+                        />
+                        Evaluate Individual Students
+                      </label>
+                      <small style={{ display: 'block', color: 'var(--dtm-muted)', fontSize: '9px', marginTop: '4px', marginLeft: '22px' }}>
+                        When enabled, advisers will answer these questions for each student individually instead of for the team as a whole. Questions follow the peer-to-peer format (Rating and Text only).
+                      </small>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{
@@ -304,28 +362,35 @@ const CreateQuestionnaire = () => {
 
                 {/* Section Navigation */}
                 {formData.sections.length > 1 && (
-                  <div style={{ marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      {formData.sections.map((section, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setActiveSectionIndex(idx)}
-                          style={{
-                            padding: '6px 10px',
-                            backgroundColor: activeSectionIndex === idx ? 'linear-gradient(135deg, rgba(138, 21, 31, 0.8), rgba(138, 21, 31, 0.5))' : 'rgba(138, 21, 31, 0.3)',
-                            color: activeSectionIndex === idx ? 'var(--dtm-gold)' : 'var(--dtm-muted)',
-                            border: activeSectionIndex === idx ? '1px solid var(--dtm-gold)' : '1px solid rgba(242, 201, 76, 0.2)',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontWeight: activeSectionIndex === idx ? '600' : '500',
-                            fontSize: '11px'
-                          }}
-                        >
-                          {section.sectionTitle}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="section-tabs" style={{ marginBottom: '8px' }}>
+                    {formData.sections.map((section, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        className={`section-tab ${activeSectionIndex === idx ? 'active' : ''}`}
+                        onClick={() => {
+                          setActiveSectionIndex(idx);
+                          setEditingQuestionIndex(null);
+                          // If switching to a section with individual eval and current question type is not compatible, reset to RATING
+                          if (section.evaluateIndividuals && !['RATING', 'TEXT'].includes(newQuestion.questionType)) {
+                            setNewQuestion({ ...newQuestion, questionType: 'RATING', maxScore: 10 });
+                          } else {
+                            setNewQuestion({
+                              questionText: "",
+                              questionType: formData.target === 'STUDENT' ? "RATING" : "NUMERIC_SCALE",
+                              minScore: 1,
+                              maxScore: formData.target === 'STUDENT' ? 10 : 5,
+                              choices: [],
+                              correctAnswer: "",
+                              pointsValue: 1,
+                              required: true,
+                            });
+                          }
+                        }}
+                      >
+                        {section.sectionTitle}
+                      </button>
+                    ))}
                   </div>
                 )}
 
@@ -355,18 +420,30 @@ const CreateQuestionnaire = () => {
                             <small style={{ color: 'var(--dtm-muted)', fontSize: '10px' }}>
                               {q.questionType}
                               {(q.questionType === 'NUMERIC_SCALE' || q.questionType === 'RATING') && ` (${q.minScore}-${q.maxScore})`}
+                              {q.required === false ? ' • Optional' : ' • Required'}
                             </small>
                           </div>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-danger"
-                            onClick={() => handleRemoveQuestion(index)}
-                            style={{ padding: '4px 8px', fontSize: '10px', flexShrink: 0 }}
-                            title="Delete question"
-                          >
-                            ×
-                          </button>
-                        </div>
+                            <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-secondary"
+                                onClick={() => handleEditQuestion(index)}
+                                style={{ padding: '4px 8px', fontSize: '10px' }}
+                                title="Edit question"
+                              >
+                                ✎
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-danger"
+                                onClick={() => handleRemoveQuestion(index)}
+                                style={{ padding: '4px 8px', fontSize: '10px' }}
+                                title="Delete question"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </div>
                       ))}
                     </div>
                   ) : (
@@ -395,15 +472,21 @@ const CreateQuestionnaire = () => {
                   />
                 </div>
 
-                <div className="form-group" style={{ width: '120px' }}>
+                <div className="form-group" style={{ minWidth: '200px' }}>
                   <label>Questionnaire For</label>
                   <select
                     value={formData.target}
-                    onChange={(e) => setFormData({ ...formData, target: e.target.value })}
+                    onChange={(e) => {
+                      const newTarget = e.target.value;
+                      setFormData({ ...formData, target: newTarget });
+                      if (newTarget === 'STUDENT' && !['RATING', 'TEXT'].includes(newQuestion.questionType)) {
+                        setNewQuestion({ ...newQuestion, questionType: 'RATING', maxScore: 10 });
+                      }
+                    }}
                     style={{ fontSize: '11px' }}
                   >
-                    <option value="ADVISER">Adviser</option>
-                    <option value="STUDENT">Student</option>
+                    <option value="ADVISER">Team</option>
+                    <option value="STUDENT">Peer-to-Peer</option>
                   </select>
                 </div>
                 <button
@@ -443,7 +526,9 @@ const CreateQuestionnaire = () => {
 
               {/* Questions Display */}
               <div style={{ marginBottom: '8px', marginTop: '4px' }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: '600', color: 'var(--dtm-gold)' }}>Add Question</h3>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: '600', color: 'var(--dtm-gold)' }}>
+                  {editingQuestionIndex !== null ? 'Edit Question' : 'Add Question'}
+                </h3>
 
                 {/* Add Question Form */}
                 {activeSectionIndex !== null && (
@@ -457,19 +542,36 @@ const CreateQuestionnaire = () => {
                             value={newQuestion.questionText}
                             onChange={(e) => setNewQuestion({ ...newQuestion, questionText: e.target.value })}
                             placeholder="Ask your question..."
-                            style={{ fontSize: '11px', flex: 1 }}
+                            style={{ fontSize: '11px', flex: 1, minWidth: '200px' }}
                           />
 
-                          <select
-                            value={newQuestion.questionType}
-                            onChange={(e) => setNewQuestion({ ...newQuestion, questionType: e.target.value })}
-                            style={{ fontSize: '11px', minWidth: '140px' }}
-                          >
-                            <option value="NUMERIC_SCALE">Numeric Scale</option>
-                            <option value="RATING">Rating</option>
-                            <option value="TEXT">Text Response</option>
-                            <option value="MULTIPLE_CHOICE">Multiple Choice</option>
-                          </select>
+                            <select
+                              value={newQuestion.questionType}
+                              onChange={(e) => {
+                                const qType = e.target.value;
+                                const isIndividualSection = formData.sections[activeSectionIndex]?.evaluateIndividuals;
+                                setNewQuestion({ 
+                                  ...newQuestion, 
+                                  questionType: qType,
+                                  maxScore: (qType === 'RATING' && (formData.target === 'STUDENT' || isIndividualSection)) ? 10 : newQuestion.maxScore
+                                });
+                              }}
+                              style={{ fontSize: '11px', width: '115px', flexShrink: 0 }}
+                            >
+                              {formData.target === 'STUDENT' || formData.sections[activeSectionIndex]?.evaluateIndividuals ? (
+                                <>
+                                  <option value="RATING">Rating</option>
+                                  <option value="TEXT">Text Response</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value="NUMERIC_SCALE">Numeric Scale</option>
+                                  <option value="RATING">Rating</option>
+                                  <option value="TEXT">Text Response</option>
+                                  <option value="MULTIPLE_CHOICE">Multiple Choice</option>
+                                </>
+                              )}
+                            </select>
                         </div>
 
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -495,9 +597,34 @@ const CreateQuestionnaire = () => {
                               flexShrink: 0,
                               position: 'relative'
                             }}
+                            title={editingQuestionIndex !== null ? "Update Question" : "Add Question"}
                           >
-                            +
+                            {editingQuestionIndex !== null ? '✓' : '+'}
                           </button>
+
+                          {editingQuestionIndex !== null && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingQuestionIndex(null);
+                                setNewQuestion({
+                                  questionText: "",
+                                  questionType: formData.target === 'STUDENT' ? "RATING" : "NUMERIC_SCALE",
+                                  minScore: 1,
+                                  maxScore: formData.target === 'STUDENT' ? 10 : 5,
+                                  choices: [],
+                                  correctAnswer: "",
+                                  pointsValue: 1,
+                                  required: true,
+                                });
+                              }}
+                              className="btn btn-sm btn-secondary"
+                              style={{ flexShrink: 0, padding: '0 8px', height: '36px', fontSize: '11px', borderRadius: '4px' }}
+                              title="Cancel Edit"
+                            >
+                              Cancel
+                            </button>
+                          )}
 
                           <button
                             type="button"
@@ -592,32 +719,46 @@ const CreateQuestionnaire = () => {
                       </div>
                     )}
 
-                    <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '4px' }}>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '4px' }}>
-                        <div className="form-group" style={{ flex: 1, margin: 0 }}>
-                          <label style={{ marginBottom: '3px' }}>Correct Answer (Optional)</label>
-                          <input
-                            type="text"
-                            placeholder="Leave blank for non-graded"
-                            value={newQuestion.correctAnswer}
-                            onChange={(e) => setNewQuestion({ ...newQuestion, correctAnswer: e.target.value })}
-                            style={{ width: '100%' }}
-                          />
-                        </div>
-                        <div className="form-group" style={{ minWidth: '80px', margin: 0 }}>
-                          <label style={{ marginBottom: '3px' }}>Points</label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={newQuestion.pointsValue}
-                            onChange={(e) => setNewQuestion({ ...newQuestion, pointsValue: parseInt(e.target.value) || 1 })}
-                            style={{ width: '100%' }}
-                          />
-                        </div>
+                    <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '8px' }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label>Requirement</label>
+                        <select
+                          value={newQuestion.required ? 'REQUIRED' : 'OPTIONAL'}
+                          onChange={(e) => setNewQuestion({ ...newQuestion, required: e.target.value === 'REQUIRED' })}
+                        >
+                          <option value="REQUIRED">Required</option>
+                          <option value="OPTIONAL">Optional</option>
+                        </select>
                       </div>
-                      <small style={{ display: 'block', fontSize: '10px', color: 'var(--dtm-muted)' }}>
-                        For MULTIPLE CHOICE: choice letter or text.
-                      </small>
+                      {formData.target !== 'STUDENT' && (
+                        <>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '4px' }}>
+                            <div className="form-group" style={{ flex: 1, margin: 0 }}>
+                              <label style={{ marginBottom: '3px' }}>Correct Answer (Optional)</label>
+                              <input
+                                type="text"
+                                placeholder="Leave blank for non-graded"
+                                value={newQuestion.correctAnswer}
+                                onChange={(e) => setNewQuestion({ ...newQuestion, correctAnswer: e.target.value })}
+                                style={{ width: '100%' }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ minWidth: '80px', margin: 0 }}>
+                              <label style={{ marginBottom: '3px' }}>Points</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={newQuestion.pointsValue}
+                                onChange={(e) => setNewQuestion({ ...newQuestion, pointsValue: parseInt(e.target.value) || 1 })}
+                                style={{ width: '100%' }}
+                              />
+                            </div>
+                          </div>
+                          <small style={{ display: 'block', fontSize: '10px', color: 'var(--dtm-muted)' }}>
+                            For MULTIPLE CHOICE: choice letter or text.
+                          </small>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}

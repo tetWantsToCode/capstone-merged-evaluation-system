@@ -4,12 +4,8 @@ import group9.advisor_eval_system.entity.*;
 import group9.advisor_eval_system.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.HashSet;
-import java.util.List;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -26,10 +22,18 @@ public class EvaluationService {
     private final UserRepository userRepository;
     private final QuestionnaireItemRepository questionnaireItemRepository;
     private final QuestionnaireService questionnaireService;
+    private final StudentRepository studentRepository;
+    private final StudentEvaluationRepository studentEvaluationRepository;
+    private final StudentEvaluationScoreRepository studentEvaluationScoreRepository;
 
-    /**
-     * Get or create an evaluation for adviser + team + questionnaire
-     */
+    @org.springframework.context.annotation.Lazy
+    @org.springframework.beans.factory.annotation.Autowired
+    private UserManagementService userManagementService;
+
+    // ─────────────────────────────────────────────────────────────
+    // Existing team-level evaluation methods (unchanged)
+    // ─────────────────────────────────────────────────────────────
+
     @Transactional
     public Evaluation getOrCreateEvaluation(Long adviserId, Long teamId, Long questionnaireId) {
         User adviser = userRepository.findById(adviserId)
@@ -42,7 +46,6 @@ public class EvaluationService {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found"));
 
-        // Check if adviser is assigned - use new ArrayList to avoid concurrent modification
         if (new ArrayList<>(team.getAdvisers()).stream().noneMatch(a -> a.getId().equals(adviserId))) {
             throw new RuntimeException("Adviser not assigned to this team");
         }
@@ -64,7 +67,6 @@ public class EvaluationService {
                     return evaluationRepository.save(eval);
                 });
 
-        // Always ensure allowEdit is true for IN_PROGRESS evaluations
         if (evaluation.getStatus() == Evaluation.EvaluationStatus.IN_PROGRESS) {
             if (evaluation.getAllowEdit() == null || !evaluation.getAllowEdit()) {
                 log.warn("Resetting allowEdit to true for IN_PROGRESS evaluation {}", evaluation.getId());
@@ -77,16 +79,13 @@ public class EvaluationService {
         return evaluation;
     }
 
-    /**
-     * Save draft answers
-     */
     @Transactional
     public Evaluation saveEvaluation(
             Long adviserId,
             Long evaluationId,
             Map<Long, Object> answers,
-            String generalComments
-    ) {
+            String generalComments) {
+
         Evaluation evaluation = evaluationRepository.findById(evaluationId)
                 .orElseThrow(() -> new RuntimeException("Evaluation not found"));
 
@@ -95,9 +94,7 @@ public class EvaluationService {
         }
         questionnaireService.ensureQuestionnaireOpenForResponses(evaluation.getQuestionnaire());
 
-        // Only prevent editing if SUBMITTED or REVIEWED - if IN_PROGRESS, always allow
         if (evaluation.getStatus() == Evaluation.EvaluationStatus.IN_PROGRESS) {
-            // Auto-correct allowEdit for IN_PROGRESS evaluations
             if (evaluation.getAllowEdit() == null || !evaluation.getAllowEdit()) {
                 log.warn("Auto-correcting allowEdit for IN_PROGRESS evaluation {}", evaluationId);
                 evaluation.setAllowEdit(true);
@@ -107,14 +104,11 @@ public class EvaluationService {
             throw new RuntimeException("Evaluation editing is locked");
         }
 
-        // Delete previous scores using repository
         evaluationScoreRepository.deleteByEvaluationId(evaluationId);
 
-        // Create new scores
         for (Map.Entry<Long, Object> entry : answers.entrySet()) {
             Long itemId = entry.getKey();
 
-            // Fetch the questionnaire item directly from repository
             QuestionnaireItem item = questionnaireItemRepository.findById(itemId)
                     .orElseThrow(() -> new RuntimeException("Invalid questionnaire item"));
 
@@ -122,11 +116,40 @@ public class EvaluationService {
             score.setEvaluation(evaluation);
             score.setQuestionnaireItem(item);
 
+            Object value = entry.getValue();
+            if (value == null) {
+                log.warn("Null value for question item {}", itemId);
+                continue;
+            }
+
+            // Skip if value is a Map (likely nested/student answers, not for team-level evaluation)
+            if (value instanceof Map) {
+                log.warn("Skipping Map value for question item {} - likely nested answers structure", itemId);
+                continue;
+            }
+
             if (item.getQuestionType() == QuestionnaireItem.QuestionType.TEXT
                     || item.getQuestionType() == QuestionnaireItem.QuestionType.MULTIPLE_CHOICE) {
-                score.setTextResponse(String.valueOf(entry.getValue()));
+                score.setTextResponse(String.valueOf(value));
             } else {
-                score.setNumericScore(Double.valueOf(entry.getValue().toString()));
+                // Numeric type
+                try {
+                    double numValue;
+                    if (value instanceof Number) {
+                        numValue = ((Number) value).doubleValue();
+                    } else {
+                        String strValue = String.valueOf(value).trim();
+                        if (strValue.isEmpty()) {
+                            log.warn("Empty string value for numeric question item {}", itemId);
+                            continue;
+                        }
+                        numValue = Double.parseDouble(strValue);
+                    }
+                    score.setNumericScore(numValue);
+                } catch (NumberFormatException e) {
+                    log.error("Cannot parse numeric value '{}' for question item {}: {}", value, itemId, e.getMessage(), e);
+                    throw new RuntimeException("Invalid numeric value for question " + itemId + ": " + value);
+                }
             }
 
             evaluationScoreRepository.save(score);
@@ -138,10 +161,6 @@ public class EvaluationService {
         return saved;
     }
 
-    /**
-     * Submit evaluation (final)
-     * Auto-grades the evaluation and locks the questionnaire if this is the first submission
-     */
     @Transactional
     public Evaluation submitEvaluation(Long adviserId, Long evaluationId) {
 
@@ -153,12 +172,10 @@ public class EvaluationService {
         }
         questionnaireService.ensureQuestionnaireOpenForResponses(evaluation.getQuestionnaire());
 
-        // Auto-grade all scores before submission
         try {
             autoGradeEvaluation(evaluation);
         } catch (Exception e) {
             log.error("Error during auto-grading: {}", e.getMessage(), e);
-            // Continue with submission even if grading fails - don't let grading block submission
         }
 
         evaluation.setStatus(Evaluation.EvaluationStatus.SUBMITTED);
@@ -167,7 +184,6 @@ public class EvaluationService {
 
         Evaluation submitted = evaluationRepository.save(evaluation);
 
-        // Lock questionnaire if this is the first submission
         Questionnaire questionnaire = evaluation.getQuestionnaire();
         if (questionnaire != null && !Boolean.TRUE.equals(questionnaire.getIsLocked())) {
             questionnaire.setIsLocked(true);
@@ -176,44 +192,44 @@ public class EvaluationService {
             log.info("Auto-locked questionnaire {} on first evaluation submission", questionnaire.getId());
         }
 
+        if (evaluation.getTeam() != null && evaluation.getTeam().getSchoolClass() != null 
+            && evaluation.getTeam().getSchoolClass().getTeacher() != null) {
+            userManagementService.asyncSyncAllDataToGoogleSheets(
+                evaluation.getTeam().getSchoolClass().getTeacher().getEmail()
+            );
+        }
+
         return submitted;
     }
 
-    /**
-     * Auto-grade all scores in an evaluation
-     * Compares answers against correct answers and calculates points awarded
-     */
     private void autoGradeEvaluation(Evaluation evaluation) {
         Set<EvaluationScore> scores = evaluation.getScores();
-        
+
         if (scores == null || scores.isEmpty()) {
             log.debug("No scores to grade for evaluation {}", evaluation.getId());
             return;
         }
-        
+
         for (EvaluationScore score : scores) {
             try {
                 QuestionnaireItem item = score.getQuestionnaireItem();
-                
+
                 if (item == null) {
                     log.warn("QuestionnaireItem is null for score {}", score.getId());
                     continue;
                 }
-                
+
                 String correctAnswer = item.getCorrectAnswer();
-                
-                // Skip grading if no correct answer is defined
+
                 if (correctAnswer == null || correctAnswer.trim().isEmpty()) {
-                    score.setIsCorrect(null); // No grading criteria
+                    score.setIsCorrect(null);
                     score.setPointsAwarded(null);
                     continue;
                 }
 
-                // Determine if answer is correct based on question type
                 boolean isCorrect = checkAnswer(item, score);
                 score.setIsCorrect(isCorrect);
 
-                // Award points if correct
                 if (isCorrect) {
                     int pointsValue = item.getPointsValue() != null ? item.getPointsValue() : 1;
                     score.setPointsAwarded(pointsValue);
@@ -222,54 +238,46 @@ public class EvaluationService {
                 }
 
                 evaluationScoreRepository.save(score);
-                log.debug("Auto-graded score {} - isCorrect: {}, pointsAwarded: {}", 
-                    score.getId(), isCorrect, score.getPointsAwarded());
-                    
+                log.debug("Auto-graded score {} - isCorrect: {}, pointsAwarded: {}",
+                        score.getId(), isCorrect, score.getPointsAwarded());
+
             } catch (Exception e) {
                 log.warn("Error grading score {}: {}", score.getId(), e.getMessage());
-                // Continue grading other scores even if one fails
             }
         }
     }
 
-    /**
-     * Check if an answer is correct based on question type
-     */
     private boolean checkAnswer(QuestionnaireItem item, EvaluationScore score) {
         try {
             String correctAnswer = item.getCorrectAnswer();
             if (correctAnswer == null || correctAnswer.isEmpty()) {
                 return false;
             }
-            
+
             correctAnswer = correctAnswer.trim();
             QuestionnaireItem.QuestionType type = item.getQuestionType();
 
             switch (type) {
                 case TEXT:
-                    // Case-insensitive text comparison
-                    String textResponse = score.getTextResponse() != null ? 
-                        score.getTextResponse().trim() : "";
+                    String textResponse = score.getTextResponse() != null ?
+                            score.getTextResponse().trim() : "";
                     return textResponse.equalsIgnoreCase(correctAnswer);
 
                 case NUMERIC_SCALE:
                 case RATING:
-                    // Numeric comparison
                     try {
                         Double numericScore = score.getNumericScore();
                         Double correctNumeric = Double.parseDouble(correctAnswer);
                         return numericScore != null && numericScore.equals(correctNumeric);
                     } catch (NumberFormatException e) {
-                        log.warn("Failed to parse numeric answer for item {}: expected {}, got {}", 
-                            item.getId(), correctAnswer, score.getNumericScore());
+                        log.warn("Failed to parse numeric answer for item {}: expected {}, got {}",
+                                item.getId(), correctAnswer, score.getNumericScore());
                         return false;
                     }
 
                 case MULTIPLE_CHOICE:
-                    // Exact string match for multiple choice
-                    String response = score.getTextResponse() != null ? 
-                        score.getTextResponse().trim() : "";
-                    // Support both exact match and case-insensitive match
+                    String response = score.getTextResponse() != null ?
+                            score.getTextResponse().trim() : "";
                     return response.equalsIgnoreCase(correctAnswer);
 
                 default:
@@ -281,9 +289,6 @@ public class EvaluationService {
         }
     }
 
-    /**
-     * Get total score for an evaluation
-     */
     public Integer getTotalScore(Long evaluationId) {
         Evaluation evaluation = evaluationRepository.findById(evaluationId)
                 .orElseThrow(() -> new RuntimeException("Evaluation not found"));
@@ -293,9 +298,6 @@ public class EvaluationService {
                 .sum();
     }
 
-    /**
-     * Get total possible points for a questionnaire
-     */
     public Integer getTotalPossiblePoints(Long questionnaireId) {
         Questionnaire questionnaire = questionnaireRepository.findById(questionnaireId)
                 .orElseThrow(() -> new RuntimeException("Questionnaire not found"));
@@ -303,5 +305,153 @@ public class EvaluationService {
         return questionnaire.getItems().stream()
                 .mapToInt(item -> item.getPointsValue() != null ? item.getPointsValue() : 0)
                 .sum();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // New adviser-to-student individual evaluation methods
+    // ─────────────────────────────────────────────────────────────
+
+    @Transactional
+    public StudentEvaluation getOrCreateAdviserStudentEvaluation(
+            Long adviserId, Long teamId, Long studentId, Long questionnaireId) {
+
+        User adviser = userRepository.findById(adviserId)
+                .orElseThrow(() -> new RuntimeException("Adviser not found"));
+
+        if (adviser.getRole() != User.UserRole.ADVISER) {
+            throw new RuntimeException("Only advisers can use this evaluation type");
+        }
+
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new RuntimeException("Team not found"));
+
+        if (new ArrayList<>(team.getAdvisers()).stream().noneMatch(a -> a.getId().equals(adviserId))) {
+            throw new RuntimeException("Adviser not assigned to this team");
+        }
+
+        boolean studentInTeam = team.getTeamStudents().stream()
+                .anyMatch(ts -> ts.getStudent().getId().equals(studentId));
+        if (!studentInTeam) {
+            throw new RuntimeException("Student is not a member of this team");
+        }
+
+        Student evaluatee = studentRepository.findById(studentId)
+                .orElseThrow(() -> new RuntimeException("Student not found"));
+
+        Questionnaire questionnaire = questionnaireRepository.findById(questionnaireId)
+                .orElseThrow(() -> new RuntimeException("Questionnaire not found"));
+        questionnaireService.ensureQuestionnaireOpenForResponses(questionnaire);
+
+        return studentEvaluationRepository
+                .findByAdviserIdAndEvaluateeIdAndQuestionnaireIdAndTeamId(
+                        adviserId, studentId, questionnaireId, teamId)
+                .orElseGet(() -> {
+                    StudentEvaluation eval = new StudentEvaluation();
+                    eval.setAdviser(adviser);
+                    eval.setTeam(team);
+                    eval.setEvaluatee(evaluatee);
+                    eval.setStudent(null);
+                    eval.setQuestionnaire(questionnaire);
+                    eval.setStatus(StudentEvaluation.EvaluationStatus.IN_PROGRESS);
+                    log.info("Creating new adviser-student evaluation: adviser={}, student={}, team={}",
+                            adviserId, studentId, teamId);
+                    return studentEvaluationRepository.save(eval);
+                });
+    }
+
+    @Transactional
+    public StudentEvaluation saveAdviserStudentEvaluation(
+            Long adviserId, Long evaluationId, Map<Long, Object> answers) {
+
+        StudentEvaluation evaluation = studentEvaluationRepository.findByIdWithDetails(evaluationId)
+                .orElseThrow(() -> new RuntimeException("Student evaluation not found"));
+
+        if (evaluation.getAdviser() == null || !evaluation.getAdviser().getId().equals(adviserId)) {
+            throw new RuntimeException("Unauthorized: This evaluation does not belong to you");
+        }
+        if (evaluation.getStatus() == StudentEvaluation.EvaluationStatus.SUBMITTED) {
+            throw new RuntimeException("Cannot edit a submitted evaluation");
+        }
+        questionnaireService.ensureQuestionnaireOpenForResponses(evaluation.getQuestionnaire());
+
+        studentEvaluationScoreRepository.deleteByStudentEvaluationId(evaluationId);
+
+        for (Map.Entry<Long, Object> entry : answers.entrySet()) {
+            QuestionnaireItem item = questionnaireItemRepository.findById(entry.getKey())
+                    .orElseThrow(() -> new RuntimeException("Invalid questionnaire item: " + entry.getKey()));
+
+            StudentEvaluationScore score = new StudentEvaluationScore();
+            score.setStudentEvaluation(evaluation);
+            score.setQuestionnaireItem(item);
+
+            Object value = entry.getValue();
+            if (value == null) {
+                log.warn("Null value for question item {}", entry.getKey());
+                continue;
+            }
+
+            // Skip if value is a Map (likely nested/student answers, not for individual evaluation)
+            if (value instanceof Map) {
+                log.warn("Skipping Map value for question item {} - likely nested answers structure", entry.getKey());
+                continue;
+            }
+
+            if (item.getQuestionType() == QuestionnaireItem.QuestionType.TEXT
+                    || item.getQuestionType() == QuestionnaireItem.QuestionType.MULTIPLE_CHOICE) {
+                score.setTextResponse(String.valueOf(value));
+            } else {
+                // Numeric type
+                try {
+                    double numValue;
+                    if (value instanceof Number) {
+                        numValue = ((Number) value).doubleValue();
+                    } else {
+                        String strValue = String.valueOf(value).trim();
+                        if (strValue.isEmpty()) {
+                            log.warn("Empty string value for numeric question item {}", entry.getKey());
+                            continue;
+                        }
+                        numValue = Double.parseDouble(strValue);
+                    }
+                    score.setNumericScore(numValue);
+                } catch (NumberFormatException e) {
+                    log.error("Cannot parse numeric value '{}' for question item {}: {}", value, entry.getKey(), e.getMessage(), e);
+                    throw new RuntimeException("Invalid numeric value for question " + entry.getKey() + ": " + value);
+                }
+            }
+            studentEvaluationScoreRepository.save(score);
+        }
+
+        log.info("Saved adviser-student evaluation {}", evaluationId);
+        return studentEvaluationRepository.findById(evaluationId).orElseThrow();
+    }
+
+    @Transactional
+    public StudentEvaluation submitAdviserStudentEvaluation(Long adviserId, Long evaluationId) {
+
+        StudentEvaluation evaluation = studentEvaluationRepository.findByIdWithDetails(evaluationId)
+                .orElseThrow(() -> new RuntimeException("Student evaluation not found"));
+
+        if (evaluation.getAdviser() == null || !evaluation.getAdviser().getId().equals(adviserId)) {
+            throw new RuntimeException("Unauthorized: This evaluation does not belong to you");
+        }
+        if (evaluation.getStatus() == StudentEvaluation.EvaluationStatus.SUBMITTED) {
+            throw new RuntimeException("Evaluation already submitted");
+        }
+        questionnaireService.ensureQuestionnaireOpenForResponses(evaluation.getQuestionnaire());
+
+        evaluation.setStatus(StudentEvaluation.EvaluationStatus.SUBMITTED);
+        evaluation.setSubmittedAt(LocalDateTime.now());
+        StudentEvaluation submitted = studentEvaluationRepository.save(evaluation);
+        log.info("Submitted adviser-student evaluation {}", evaluationId);
+
+        if (evaluation.getTeam() != null && evaluation.getTeam().getSchoolClass() != null 
+            && evaluation.getTeam().getSchoolClass().getTeacher() != null) {
+            userManagementService.asyncSyncAllDataToGoogleSheets(
+                evaluation.getTeam().getSchoolClass().getTeacher().getEmail()
+            );
+        }
+
+        return submitted;
     }
 }

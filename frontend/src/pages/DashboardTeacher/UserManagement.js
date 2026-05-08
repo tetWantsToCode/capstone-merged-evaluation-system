@@ -4,6 +4,8 @@ import { userManagementAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import TeacherSidebar from '../../components/Sidebar/TeacherSidebar';
 import SummaryCard from '../../components/Cards/SummaryCard';
+import { usePagination } from '../../hooks/usePagination';
+import Pagination from '../../components/Pagination/Pagination';
 import './Teacher.css';
 
 function UserManagement() {
@@ -18,6 +20,8 @@ function UserManagement() {
   const [importType, setImportType] = useState('STUDENT'); // 'STUDENT' or 'ADVISER'
   const [showExportModal, setShowExportModal] = useState(false);
   const [filterRole, setFilterRole] = useState('ALL');
+  const [pushing, setPushing] = useState(false);
+  const [pushError, setPushError] = useState('');
 
   useEffect(() => {
     fetchUsers();
@@ -32,17 +36,6 @@ function UserManagement() {
       toast.error('Failed to load users: ' + err.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDelete = async (id, email) => {
-    if (!window.confirm(`Remove ${email} from the system?`)) return;
-    try {
-      await userManagementAPI.deleteUser(id);
-      toast.success(`${email} removed`);
-      fetchUsers();
-    } catch (err) {
-      toast.error('Failed to remove: ' + err.message);
     }
   };
 
@@ -142,9 +135,26 @@ function UserManagement() {
     }
   };
 
+  const pushDataToSheets = async () => {
+    setPushing(true);
+    setPushError('');
+    try {
+      const response = await userManagementAPI.pushDataToSheets(importType);
+      toast.success(response.message || 'Data pushed to Google Sheets successfully');
+      setShowExportModal(false);
+    } catch (err) {
+      setPushError('Failed to push data: ' + err.message);
+      toast.error('Failed to push data: ' + err.message);
+    } finally {
+      setPushing(false);
+    }
+  };
+
   const filtered = filterRole === 'ALL'
     ? users
     : users.filter(u => u.role === filterRole);
+
+  const { currentPage, totalPages, paginatedData, goToPage } = usePagination(filtered, 10);
 
   const counts = {
     total: users.length,
@@ -216,6 +226,7 @@ function UserManagement() {
               <p>No users found. Upload student or adviser sheets to get started.</p>
             </div>
           ) : (
+            <>
             <table className="class-table">
               <thead>
                 <tr>
@@ -223,13 +234,12 @@ function UserManagement() {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Role</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((u, idx) => (
+                {paginatedData.map((u, idx) => (
                   <tr key={u.id}>
-                    <td>{idx + 1}</td>
+                    <td>{(currentPage - 1) * 10 + idx + 1}</td>
                     <td>{u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : '—'}</td>
                     <td style={{ fontFamily: 'monospace', fontSize: '13px' }}>{u.email}</td>
                     <td>
@@ -244,21 +254,16 @@ function UserManagement() {
                         {u.role}
                       </span>
                     </td>
-                    <td>
-                      {u.email !== 'authortet@gmail.com' && (
-                        <button
-                          className="btn-secondary"
-                          style={{ padding: '5px 12px', fontSize: '12px', color: '#dc3545', borderColor: '#dc3545' }}
-                          onClick={() => handleDelete(u.id, u.email)}
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <Pagination 
+              currentPage={currentPage} 
+              totalPages={totalPages} 
+              onPageChange={goToPage} 
+            />
+          </>
           )}
         </div>
       </div>
@@ -366,7 +371,9 @@ function UserManagement() {
               Choose what you'd like to export:
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+            {pushError && <div className="error-message" style={{ marginBottom: '16px' }}>{pushError}</div>}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '24px' }}>
               <div 
                 style={{
                   padding: '20px',
@@ -374,7 +381,9 @@ function UserManagement() {
                   borderRadius: '10px',
                   cursor: 'pointer',
                   transition: 'all 0.3s ease',
-                  backgroundColor: 'rgba(138, 21, 31, 0.1)'
+                  backgroundColor: 'rgba(138, 21, 31, 0.1)',
+                  opacity: pushing ? 0.6 : 1,
+                  pointerEvents: pushing ? 'none' : 'auto'
                 }}
                 onClick={downloadTemplate}
                 onMouseEnter={(e) => {
@@ -402,7 +411,9 @@ function UserManagement() {
                   borderRadius: '10px',
                   cursor: 'pointer',
                   transition: 'all 0.3s ease',
-                  backgroundColor: 'rgba(138, 21, 31, 0.1)'
+                  backgroundColor: 'rgba(138, 21, 31, 0.1)',
+                  opacity: pushing ? 0.6 : 1,
+                  pointerEvents: pushing ? 'none' : 'auto'
                 }}
                 onClick={exportData}
                 onMouseEnter={(e) => {
@@ -420,6 +431,38 @@ function UserManagement() {
                 </h3>
                 <p style={{ margin: '0', fontSize: '12px', color: '#a09890' }}>
                   Export current {importType === 'STUDENT' ? 'students' : 'advisers'} data
+                </p>
+              </div>
+
+              <div 
+                style={{
+                  padding: '20px',
+                  border: '1px solid rgba(138, 21, 31, 0.3)',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  backgroundColor: 'rgba(138, 21, 31, 0.1)',
+                  opacity: pushing ? 0.6 : 1,
+                  pointerEvents: pushing ? 'none' : 'auto'
+                }}
+                onClick={pushDataToSheets}
+                onMouseEnter={(e) => {
+                  if (!pushing) {
+                    e.currentTarget.style.borderColor = 'rgba(138, 21, 31, 0.6)';
+                    e.currentTarget.style.backgroundColor = 'rgba(138, 21, 31, 0.2)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(138, 21, 31, 0.3)';
+                  e.currentTarget.style.backgroundColor = 'rgba(138, 21, 31, 0.1)';
+                }}
+              >
+                <div style={{ fontSize: '20px', marginBottom: '8px' }}>☁️</div>
+                <h3 style={{ margin: '0 0 8px 0', color: '#f5f0eb', fontSize: '14px', fontWeight: '600' }}>
+                  {pushing ? 'Uploading...' : 'Upload to Sheets'}
+                </h3>
+                <p style={{ margin: '0', fontSize: '12px', color: '#a09890' }}>
+                  Push {importType === 'STUDENT' ? 'students' : 'advisers'} data to linked Google Sheet
                 </p>
               </div>
             </div>

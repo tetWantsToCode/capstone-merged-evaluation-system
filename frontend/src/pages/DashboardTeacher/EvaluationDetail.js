@@ -171,6 +171,7 @@ const EvaluationDetail = () => {
   const buildQuestionAnswerRows = (evalData) => {
     const questionnaire = evalData?.questionnaire || {};
     const scores = Array.isArray(evalData?.scores) ? evalData.scores : [];
+    const individualStudentScores = Array.isArray(evalData?.individualStudentScores) ? evalData.individualStudentScores : [];
     const sections = Array.isArray(questionnaire?.sections) ? questionnaire.sections : [];
     const standaloneItems = Array.isArray(questionnaire?.items) ? questionnaire.items : [];
 
@@ -180,6 +181,19 @@ const EvaluationDetail = () => {
         .map((score) => [score.questionnaireItemId, score])
     );
 
+    // Build per-student score map for individual sections: itemId -> [{studentName, score}]
+    const indScoresByItemId = new Map();
+    individualStudentScores.forEach(({ studentName, scores: studentScores }) => {
+      if (!Array.isArray(studentScores)) return;
+      studentScores.forEach((score) => {
+        if (score?.questionnaireItemId == null) return;
+        if (!indScoresByItemId.has(score.questionnaireItemId)) {
+          indScoresByItemId.set(score.questionnaireItemId, []);
+        }
+        indScoresByItemId.get(score.questionnaireItemId).push({ studentName, score });
+      });
+    });
+
     const rows = [];
     const renderedScoreIds = new Set();
 
@@ -187,26 +201,53 @@ const EvaluationDetail = () => {
       .slice()
       .sort((a, b) => toSortedNumber(a?.orderIndex) - toSortedNumber(b?.orderIndex))
       .forEach((section) => {
+        const isIndividual = section?.evaluateIndividuals === true;
         const sectionItems = Array.isArray(section?.items) ? section.items : [];
         sectionItems
           .slice()
           .sort((a, b) => toSortedNumber(a?.orderIndex) - toSortedNumber(b?.orderIndex))
           .forEach((item) => {
-            const score = scoreByItemId.get(item?.id);
-            if (score?.id !== null && score?.id !== undefined) {
-              renderedScoreIds.add(score.id);
+            if (isIndividual) {
+              // Individual section: answers come from StudentEvaluation records per student
+              const studentEntries = indScoresByItemId.get(item?.id) || [];
+              const hasNumericAnswer = studentEntries.some(
+                ({ score }) => score?.numericScore !== null && score?.numericScore !== undefined
+              );
+              const hasTextAnswer = studentEntries.some(
+                ({ score }) => score?.textResponse && score.textResponse.trim()
+              );
+              const answerText = studentEntries.length > 0
+                ? studentEntries.map(({ studentName, score }) => `${studentName}: ${formatAnswerValue(score, item)}`).join(" | ")
+                : "Not answered";
+              rows.push({
+                key: item?.id ?? `section-${section?.id ?? "unknown"}-${rows.length}`,
+                sectionTitle: section?.sectionTitle || null,
+                questionText: item?.questionText || "Untitled question",
+                answerText,
+                hasNumericAnswer,
+                hasTextAnswer,
+                isAnswered: hasNumericAnswer || hasTextAnswer,
+                isIndividual: true,
+                studentEntries,
+              });
+            } else {
+              // Team-level section: answers from Evaluation.scores
+              const score = scoreByItemId.get(item?.id);
+              if (score?.id !== null && score?.id !== undefined) {
+                renderedScoreIds.add(score.id);
+              }
+              const hasNumericAnswer = score?.numericScore !== null && score?.numericScore !== undefined;
+              const hasTextAnswer = !!(score?.textResponse && score.textResponse.trim());
+              rows.push({
+                key: item?.id ?? `section-${section?.id ?? "unknown"}-${rows.length}`,
+                sectionTitle: section?.sectionTitle || null,
+                questionText: item?.questionText || score?.questionText || "Untitled question",
+                answerText: formatAnswerValue(score, item),
+                hasNumericAnswer,
+                hasTextAnswer,
+                isAnswered: hasNumericAnswer || hasTextAnswer,
+              });
             }
-            const hasNumericAnswer = score?.numericScore !== null && score?.numericScore !== undefined;
-            const hasTextAnswer = !!(score?.textResponse && score.textResponse.trim());
-            rows.push({
-              key: item?.id ?? `section-${section?.id ?? "unknown"}-${rows.length}`,
-              sectionTitle: section?.sectionTitle || null,
-              questionText: item?.questionText || score?.questionText || "Untitled question",
-              answerText: formatAnswerValue(score, item),
-              hasNumericAnswer,
-              hasTextAnswer,
-              isAnswered: hasNumericAnswer || hasTextAnswer,
-            });
           });
       });
 
@@ -503,57 +544,117 @@ const EvaluationDetail = () => {
 
   const aiFeedbackSections = parseAiFeedbackSections(aiFeedback);
 
-  const renderQuestionAnswerList = () => (
-    <>
-      <div className="evaluation-modal-summary-row">
-        <span className="evaluation-modal-count">Showing {filteredQuestionAnswerRows.length} of {questionAnswerRows.length} questions</span>
-      </div>
+  const renderQuestionAnswerList = () => {
+    // Group filteredQuestionAnswerRows by sectionTitle (null → "General Questions")
+    const groups = [];
+    const groupMap = new Map();
 
-      <div className="evaluation-modal-filter-row">
-        {QA_FILTER_OPTIONS.map((filterKey) => {
-          const label = filterKey === "all"
-            ? "All"
-            : filterKey === "withScores"
-              ? "With Scores"
-              : filterKey === "textAnswers"
-                ? "Text Answers"
-                : "Unanswered";
+    filteredQuestionAnswerRows.forEach((row) => {
+      const key = row.sectionTitle ?? "__general__";
+      if (!groupMap.has(key)) {
+        const group = {
+          sectionTitle: row.sectionTitle,
+          isIndividual: !!row.isIndividual,
+          rows: [],
+        };
+        groupMap.set(key, group);
+        groups.push(group);
+      }
+      const group = groupMap.get(key);
+      // Keep isIndividual true if any row in group is individual
+      if (row.isIndividual) group.isIndividual = true;
+      group.rows.push(row);
+    });
 
-          return (
-            <button
-              key={filterKey}
-              type="button"
-              className={`evaluation-filter-chip ${qaFilter === filterKey ? "is-active" : ""}`}
-              onClick={() => setQaFilter(filterKey)}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
+    // Running Q index across all groups for consistent numbering
+    let globalQIndex = 0;
 
-      {filteredQuestionAnswerRows.length > 0 ? (
-        filteredQuestionAnswerRows.map((row, index) => (
-          <div key={row.key} className="evaluation-response-item">
-            {row.sectionTitle && (
-              <div className="evaluation-response-section">Section: {row.sectionTitle}</div>
-            )}
-            <div className="evaluation-response-question">
-              <strong>Q{index + 1}:</strong> {row.questionText}
+    return (
+      <>
+        <div className="evaluation-modal-summary-row">
+          <span className="evaluation-modal-count">
+            Showing {filteredQuestionAnswerRows.length} of {questionAnswerRows.length} questions
+          </span>
+        </div>
+
+        <div className="evaluation-modal-filter-row">
+          {QA_FILTER_OPTIONS.map((filterKey) => {
+            const label = filterKey === "all"
+              ? "All"
+              : filterKey === "withScores"
+                ? "With Scores"
+                : filterKey === "textAnswers"
+                  ? "Text Answers"
+                  : "Unanswered";
+            return (
+              <button
+                key={filterKey}
+                type="button"
+                className={`evaluation-filter-chip ${qaFilter === filterKey ? "is-active" : ""}`}
+                onClick={() => setQaFilter(filterKey)}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {groups.length > 0 ? (
+          groups.map((group, gIdx) => (
+            <div key={group.sectionTitle ?? `group-${gIdx}`} className="qa-section-group">
+              <div className="qa-section-header">
+                <div className="qa-section-header-left">
+                  <span className="qa-section-icon">{group.isIndividual ? "👤" : "👥"}</span>
+                  <span className="qa-section-title">
+                    {group.sectionTitle ?? "General Questions"}
+                  </span>
+                  <span className={`qa-section-type-badge ${group.isIndividual ? "is-individual" : "is-team"}`}>
+                    {group.isIndividual ? "Individual" : "Team"}
+                  </span>
+                </div>
+                <span className="qa-section-q-count">{group.rows.length} Q</span>
+              </div>
+
+              <div className="qa-question-list">
+                {group.rows.map((row) => {
+                  globalQIndex += 1;
+                  const qNum = globalQIndex;
+                  return (
+                    <div key={row.key} className={`qa-question-row ${!row.isAnswered ? "is-unanswered" : ""}`}>
+                      <div className="qa-question-top">
+                        <span className="qa-question-num">Q{qNum}</span>
+                        <span className="qa-question-text">{row.questionText}</span>
+                      </div>
+                      {row.isIndividual && row.studentEntries?.length > 0 ? (
+                        <div className="qa-student-answers">
+                          {row.studentEntries.map(({ studentName, score }, idx) => (
+                            <div key={idx} className="qa-student-answer-row">
+                              <span className="qa-student-name">{studentName}</span>
+                              <span className="qa-student-value">{formatAnswerValue(score, null)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className={`qa-answer-block ${!row.isAnswered ? "is-empty" : ""}`}>
+                          {row.answerText}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div className="evaluation-response-answer">
-              <strong>Answer:</strong> {row.answerText}</div>
-          </div>
-        ))
-      ) : (
-        <p className="pending">No questionnaire responses for this filter.</p>
-      )}
+          ))
+        ) : (
+          <p className="pending">No questionnaire responses for this filter.</p>
+        )}
 
-      <div className="evaluation-general-comment-box">
-        <strong>General Comments:</strong> {evaluation.generalComments?.trim() || "None"}
-      </div>
-    </>
-  );
+        <div className="evaluation-general-comment-box">
+          <strong>General Comments:</strong> {evaluation.generalComments?.trim() || "None"}
+        </div>
+      </>
+    );
+  };
 
   return (
     <div className="teacher-container">

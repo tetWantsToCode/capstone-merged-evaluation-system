@@ -318,6 +318,33 @@ public class QuestionnaireController {
     }
 
     /**
+     * Duplicate questionnaire (Teacher only)
+     */
+    @PostMapping("/{id}/duplicate")
+    public ResponseEntity<?> duplicateQuestionnaire(
+            @PathVariable Long id,
+            Authentication authentication) {
+        try {
+            User user = getUserFromAuthentication(authentication);
+
+            if (user.getRole() != User.UserRole.TEACHER) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new ErrorResponse("Only teachers can duplicate questionnaires"));
+            }
+
+            Questionnaire duplicated = questionnaireService.duplicateQuestionnaire(id, user.getId());
+            QuestionnaireResponse response = QuestionnaireResponse.fromEntity(duplicated);
+            long count = questionnaireItemRepository.countByQuestionnaireId(duplicated.getId());
+            response.setQuestionCount((int) count);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception e) {
+            log.error("Error duplicating questionnaire", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse(e.getMessage()));
+        }
+    }
+
+    /**
      * Delete questionnaire (Teacher only)
      */
     @DeleteMapping("/{id}")

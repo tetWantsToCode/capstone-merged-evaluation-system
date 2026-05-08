@@ -19,70 +19,82 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @Column(nullable = true)
     private String firstName;
-    
+
     @Column(nullable = true)
     private String lastName;
-    
+
     @Email
     @NotBlank
     @Column(nullable = false, unique = true)
     private String email;
-    
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserRole role; // TEACHER or ADVISER
-    
+
     @Column(nullable = false)
     private Boolean isActive = true;
-    
+
     // Google OAuth fields for account linking
     @Column(nullable = true)
     private String googleId;
-    
+
     @Column(nullable = true, length = 1000)
     @JsonIgnore
     private String googleAccessToken;
-    
+
     @Column(nullable = true, length = 1000)
     @JsonIgnore
     private String googleRefreshToken;
-    
+
     @Column(nullable = true)
     private LocalDateTime googleTokenExpiry;
-    
+
     @Column(nullable = true)
     private String googleEmail;
-    
+
     @Column(nullable = false)
     private Boolean isGoogleLinked = false;
-    
+
+    // Google Sheets URL for teachers to configure automatic data export
+    @Column(nullable = true, length = 2000)
+    private String googleSheetsUrl;
+
+    // User-provided AI API key and provider (e.g. "gemini", "openai", "anthropic")
+    @Column(nullable = true, length = 500)
+    @JsonIgnore
+    private String aiApiKey;
+
+    @Column(nullable = true, length = 50)
+    private String aiProvider;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
-    
+
     @UpdateTimestamp
     private LocalDateTime updatedAt;
-    
+
     // Relationships
     @OneToMany(mappedBy = "teacher", cascade = CascadeType.ALL)
     @JsonIgnore
     @lombok.ToString.Exclude
     @lombok.EqualsAndHashCode.Exclude
     private List<SchoolClass> createdClasses = new ArrayList<>();
-    
+
     @ManyToMany(mappedBy = "advisers")
     @JsonIgnore
     @lombok.ToString.Exclude
     @lombok.EqualsAndHashCode.Exclude
     private List<Team> advisedTeams = new ArrayList<>();
-    
+
     public enum UserRole {
         TEACHER,
         ADVISER,

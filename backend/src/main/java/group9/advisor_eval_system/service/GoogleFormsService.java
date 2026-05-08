@@ -150,7 +150,7 @@ public class GoogleFormsService {
 
             // Add questions and sections with page breaks
             if ((sections != null && !sections.isEmpty()) || (questions != null && !questions.isEmpty())) {
-                addQuestionsAndSectionsToForm(formsService, createdForm.getFormId(), questions, sections);
+                addQuestionsAndSectionsToForm(formsService, createdForm.getFormId(), questions, sections, accessToken);
             } else {
                 log.warn("No questions or sections provided to add to Google Form");
             }
@@ -227,13 +227,12 @@ public class GoogleFormsService {
             // 2. Update Form Info (Title and Description)
             Info info = new Info();
             info.setTitle(title);
-            info.setDocumentTitle(title);
             if (description != null) {
                 info.setDescription(description);
             }
             UpdateFormInfoRequest updateInfo = new UpdateFormInfoRequest()
                     .setInfo(info)
-                    .setUpdateMask(description != null ? "title,documentTitle,description" : "title,documentTitle");
+                    .setUpdateMask(description != null ? "title,description" : "title");
             batchRequests.add(new Request().setUpdateFormInfo(updateInfo));
 
             // 3. Delete all existing items
@@ -256,7 +255,7 @@ public class GoogleFormsService {
 
             // 4. Add the new items using our existing logic
             if ((sections != null && !sections.isEmpty()) || (questions != null && !questions.isEmpty())) {
-                addQuestionsAndSectionsToForm(formsService, formId, questions, sections);
+                addQuestionsAndSectionsToForm(formsService, formId, questions, sections, accessToken);
             }
 
             log.info("Successfully overwritten Google Form {}", formId);
@@ -264,6 +263,20 @@ public class GoogleFormsService {
         } catch (Exception e) {
             log.error("Error overwriting Google Form", e);
             throw new RuntimeException("Failed to sync updates to Google Form: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Fetch a Google Form by id for mapping synchronization.
+     */
+    public Form getFormById(Long teacherId, String formId) {
+        try {
+            String accessToken = googleAuthService.getValidAccessToken(teacherId);
+            Forms formsService = getFormsService(accessToken);
+            return formsService.forms().get(formId).execute();
+        } catch (Exception e) {
+            log.error("Error fetching Google Form {}", formId, e);
+            throw new RuntimeException("Failed to fetch Google Form: " + e.getMessage(), e);
         }
     }
 
@@ -297,7 +310,8 @@ public class GoogleFormsService {
      */
     private void addQuestionsAndSectionsToForm(Forms formsService, String formId, 
                                                 List<QuestionnaireItem> looseQuestions, 
-                                                List<QuestionnaireSection> sections) {
+                                                List<QuestionnaireSection> sections,
+                                                String accessToken) {
         try {
             List<Request> requests = new ArrayList<>();
             int itemIndex = 0;
@@ -325,9 +339,20 @@ public class GoogleFormsService {
                     if (section.getItems() != null && !section.getItems().isEmpty()) {
                         List<QuestionnaireItem> sortedItems = new ArrayList<>(section.getItems());
                         sortedItems.sort(java.util.Comparator.comparing(QuestionnaireItem::getOrderIndex));
+                        
+                        // Check if this is an individual evaluation section
+                        boolean isIndividualSection = section.getEvaluateIndividuals() != null && section.getEvaluateIndividuals();
+                        
                         for (QuestionnaireItem item : sortedItems) {
-                            Request request = createQuestionRequest(item, itemIndex++);
-                            requests.add(request);
+                            if (isIndividualSection) {
+                                // For individual evaluations, create grid question via direct HTTP call
+                                final int NUM_INDIVIDUAL_SLOTS = 10;
+                                createGridQuestionViaHttp(formId, item, itemIndex++, NUM_INDIVIDUAL_SLOTS, accessToken);
+                            } else {
+                                // For non-individual sections, add question normally (once)
+                                Request request = createQuestionRequest(item, itemIndex++);
+                                requests.add(request);
+                            }
                         }
                     }
                 }
@@ -368,6 +393,272 @@ public class GoogleFormsService {
     }
 
     /**
+     * Create a grid question via direct HTTP call to Google Forms API
+     * Uses questionGroupItem with rowQuestion objects and shared grid columns
+     */
+    private void createGridQuestionViaHttp(String formId, QuestionnaireItem item, int index, 
+                                          int numRows, String accessToken) {
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            
+            // Build rows (one rowQuestion for each team member 1-10)
+            java.util.List<java.util.Map<String, Object>> questions = new ArrayList<>();
+            for (int i = 1; i <= numRows; i++) {
+                java.util.Map<String, Object> rowQuestion = new java.util.HashMap<>();
+                java.util.Map<String, String> row = new java.util.HashMap<>();
+                row.put("title", "Member " + i);
+                rowQuestion.put("rowQuestion", row);
+                questions.add(rowQuestion);
+            }
+
+            // Build grid columns based on question type
+            java.util.Map<String, Object> gridColumns = new java.util.HashMap<>();
+            java.util.List<java.util.Map<String, String>> options = new ArrayList<>();
+
+            if (item.getQuestionType() == QuestionnaireItem.QuestionType.NUMERIC_SCALE ||
+                    item.getQuestionType() == QuestionnaireItem.QuestionType.RATING) {
+                // Create numeric scale columns with decimals between highest and 2nd highest
+                // e.g., 10 9.9 9.8 9.7 9.6 9.5 9.4 9.3 9.2 9.1 9 8 7 6 5 4 3 2 1
+                int low = item.getMinScore() != null ? item.getMinScore() : 1;
+                int high = item.getMaxScore() != null ? item.getMaxScore() : 5;
+                
+                // Add the highest value
+                java.util.Map<String, String> option = new java.util.HashMap<>();
+                option.put("value", String.valueOf(high));
+                options.add(option);
+                
+                // Add decimal values from high-0.1 to high-0.9
+                for (int i = 9; i >= 1; i--) {
+                    java.util.Map<String, String> decimalOption = new java.util.HashMap<>();
+                    decimalOption.put("value", String.format("%.1f", high - (i / 10.0)));
+                    options.add(decimalOption);
+                }
+                
+                // Add remaining integer values
+                for (int i = high - 1; i >= low; i--) {
+                    java.util.Map<String, String> intOption = new java.util.HashMap<>();
+                    intOption.put("value", String.valueOf(i));
+                    options.add(intOption);
+                }
+                gridColumns.put("type", "RADIO");
+            } else if (item.getQuestionType() == QuestionnaireItem.QuestionType.MULTIPLE_CHOICE) {
+                // Create columns from the multiple choice options
+                java.util.Set<String> uniqueChoices = new java.util.LinkedHashSet<>();
+                if (item.getChoices() != null && !item.getChoices().isEmpty()) {
+                    try {
+                        String[] choicesArray = mapper.readValue(item.getChoices(), String[].class);
+                        for (String choice : choicesArray) {
+                            if (choice != null && !choice.trim().isEmpty()) {
+                                uniqueChoices.add(choice.trim());
+                            }
+                        }
+                    } catch (Exception e) {
+                        String[] choicesArray = item.getChoices().split(",");
+                        for (String choice : choicesArray) {
+                            if (choice != null && !choice.trim().isEmpty()) {
+                                uniqueChoices.add(choice.trim());
+                            }
+                        }
+                    }
+                }
+                for (String choice : uniqueChoices) {
+                    java.util.Map<String, String> option = new java.util.HashMap<>();
+                    option.put("value", choice);
+                    options.add(option);
+                }
+                gridColumns.put("type", "RADIO");
+            }
+            gridColumns.put("options", options);
+
+            // Build the questionGroupItem
+            java.util.Map<String, Object> questionGroupItem = new java.util.HashMap<>();
+            questionGroupItem.put("questions", questions);
+            questionGroupItem.put("grid", new java.util.HashMap<String, Object>() {{
+                put("columns", gridColumns);
+            }});
+
+            // Build the item
+            java.util.Map<String, Object> item_map = new java.util.HashMap<>();
+            item_map.put("title", item.getQuestionText());
+            item_map.put("questionGroupItem", questionGroupItem);
+
+            // Build the location
+            java.util.Map<String, Object> location = new java.util.HashMap<>();
+            location.put("index", index);
+
+            // Build the createItem request
+            java.util.Map<String, Object> createItemRequest = new java.util.HashMap<>();
+            createItemRequest.put("item", item_map);
+            createItemRequest.put("location", location);
+
+            // Build the request
+            java.util.Map<String, Object> request = new java.util.HashMap<>();
+            request.put("createItem", createItemRequest);
+
+            // Build batch update request
+            java.util.List<java.util.Map<String, Object>> requests = new ArrayList<>();
+            requests.add(request);
+
+            java.util.Map<String, Object> batchRequest = new java.util.HashMap<>();
+            batchRequest.put("requests", requests);
+
+            // Make HTTP request
+            String url = "https://forms.googleapis.com/v1/forms/" + formId + ":batchUpdate";
+            String jsonBody = mapper.writeValueAsString(batchRequest);
+            
+            log.info("Creating grid question with JSON: {}", jsonBody);
+
+            com.google.api.client.http.HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
+            com.google.api.client.http.HttpRequestFactory requestFactory = httpTransport.createRequestFactory(
+                    request_inner -> request_inner.setHeaders(
+                            new com.google.api.client.http.HttpHeaders().setAuthorization("Bearer " + accessToken)
+                    )
+            );
+
+            com.google.api.client.http.HttpRequest httpRequest = requestFactory.buildPostRequest(
+                    new com.google.api.client.http.GenericUrl(url),
+                    com.google.api.client.http.ByteArrayContent.fromString("application/json", jsonBody)
+            );
+
+            com.google.api.client.http.HttpResponse response = httpRequest.execute();
+            
+            if (response.getStatusCode() >= 400) {
+                String errorBody = response.parseAsString();
+                log.error("Failed to create grid question: HTTP {}: {}", response.getStatusCode(), errorBody);
+                throw new RuntimeException("Failed to create grid question: HTTP " + response.getStatusCode() + ": " + errorBody);
+            } else {
+                log.info("Successfully created grid question for form {}", formId);
+            }
+
+        } catch (Exception e) {
+            log.error("Error creating grid question via HTTP", e);
+            throw new RuntimeException("Failed to create grid question: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+        Item pageBreakItem = new Item();
+        pageBreakItem.setPageBreakItem(new PageBreakItem());
+
+        CreateItemRequest createItemRequest = new CreateItemRequest();
+        createItemRequest.setItem(pageBreakItem);
+        
+        Location location = new Location();
+        location.setIndex(index);
+        createItemRequest.setLocation(location);
+
+        Request request = new Request();
+        request.setCreateItem(createItemRequest);
+
+        return request;
+    }
+
+    /**
+     * Create a grid question for individual student evaluations using direct REST API call
+     * Grid has rows for each team member (1-10) and columns based on question type
+     */
+    private Request createGridQuestion(QuestionnaireItem item, int index, int numRows) {
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            
+            // Build rows (one for each student number)
+            java.util.List<java.util.Map<String, String>> rows = new ArrayList<>();
+            for (int i = 1; i <= numRows; i++) {
+                java.util.Map<String, String> row = new java.util.HashMap<>();
+                row.put("title", String.valueOf(i));
+                rows.add(row);
+            }
+
+            // Build columns based on question type
+            java.util.List<java.util.Map<String, String>> columns = new ArrayList<>();
+
+            if (item.getQuestionType() == QuestionnaireItem.QuestionType.NUMERIC_SCALE ||
+                    item.getQuestionType() == QuestionnaireItem.QuestionType.RATING) {
+                // Create numeric scale columns (e.g., 1-5) - in reverse order for better UX
+                int low = item.getMinScore() != null ? item.getMinScore() : 1;
+                int high = item.getMaxScore() != null ? item.getMaxScore() : 5;
+                for (int i = high; i >= low; i--) {
+                    java.util.Map<String, String> col = new java.util.HashMap<>();
+                    col.put("title", String.valueOf(i));
+                    columns.add(col);
+                }
+            } else if (item.getQuestionType() == QuestionnaireItem.QuestionType.MULTIPLE_CHOICE) {
+                // Create columns from the multiple choice options
+                java.util.Set<String> uniqueChoices = new java.util.LinkedHashSet<>();
+                if (item.getChoices() != null && !item.getChoices().isEmpty()) {
+                    try {
+                        String[] choicesArray = mapper.readValue(item.getChoices(), String[].class);
+                        for (String choice : choicesArray) {
+                            if (choice != null && !choice.trim().isEmpty()) {
+                                uniqueChoices.add(choice.trim());
+                            }
+                        }
+                    } catch (Exception e) {
+                        String[] choicesArray = item.getChoices().split(",");
+                        for (String choice : choicesArray) {
+                            if (choice != null && !choice.trim().isEmpty()) {
+                                uniqueChoices.add(choice.trim());
+                            }
+                        }
+                    }
+                }
+                for (String choice : uniqueChoices) {
+                    java.util.Map<String, String> col = new java.util.HashMap<>();
+                    col.put("title", choice);
+                    columns.add(col);
+                }
+            }
+
+            // Build the grid question JSON structure using standard API format
+            java.util.Map<String, Object> gridQuestion = new java.util.HashMap<>();
+            gridQuestion.put("rows", rows);
+            gridQuestion.put("columns", columns);
+
+            // Build the full question request JSON
+            java.util.Map<String, Object> questionJson = new java.util.HashMap<>();
+            java.util.Map<String, Object> itemJson = new java.util.HashMap<>();
+            java.util.Map<String, Object> questionItem = new java.util.HashMap<>();
+            java.util.Map<String, Object> question = new java.util.HashMap<>();
+            
+            question.put("gridQuestion", gridQuestion);
+            question.put("required", item.getRequired() == null || item.getRequired());
+            
+            questionItem.put("question", question);
+            itemJson.put("title", item.getQuestionText());
+            itemJson.put("questionItem", questionItem);
+            
+            java.util.Map<String, Object> location = new java.util.HashMap<>();
+            location.put("index", index);
+            
+            java.util.Map<String, Object> createItemRequest = new java.util.HashMap<>();
+            createItemRequest.put("item", itemJson);
+            createItemRequest.put("location", location);
+            
+            java.util.Map<String, Object> request = new java.util.HashMap<>();
+            request.put("createItem", createItemRequest);
+            
+            // Log for debugging
+            String gridJson = mapper.writeValueAsString(request);
+            log.info("Grid question request JSON: {}", gridJson);
+            
+            // Convert back to Request object using Jackson
+            // Since we can't directly create GridQuestion, we use raw JSON conversion
+            Request formRequest = new Request();
+            String requestJson = mapper.writeValueAsString(request);
+            com.google.api.client.json.JsonParser parser = JSON_FACTORY
+                    .createJsonParser(requestJson);
+            formRequest = parser.parse(Request.class);
+            
+            return formRequest;
+            
+        } catch (Exception e) {
+            log.error("Error creating grid question via JSON, falling back to individual questions", e);
+            return createQuestionRequest(item, index);
+        }
+    }
+
+
+    /**
      * Create a question request based on question type
      */
     private Request createQuestionRequest(QuestionnaireItem item, int index) {
@@ -375,7 +666,7 @@ public class GoogleFormsService {
         // Don't set questionId - Google Forms will auto-generate it
 
         // Set question text
-        question.setRequired(true);
+        question.setRequired(item.getRequired() == null || item.getRequired());
 
         switch (item.getQuestionType()) {
             case NUMERIC_SCALE:

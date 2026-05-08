@@ -9,6 +9,8 @@ import Teacher from './pages/DashboardTeacher/Teacher';
 import Questionnaires from './pages/DashboardTeacher/Questionnaires';
 import CreateQuestionnaire from './pages/DashboardTeacher/CreateQuestionnaire';
 import Reports from './pages/DashboardTeacher/Reports';
+import Performance from './pages/DashboardTeacher/Performance';
+import StudentPerformance from './pages/DashboardTeacher/StudentPerformance';
 import EvaluationDetail from './pages/DashboardTeacher/EvaluationDetail';
 import StudentEvaluationDetail from './pages/DashboardTeacher/StudentEvaluationDetail';
 import Students from './pages/DashboardTeacher/Students';
@@ -20,6 +22,8 @@ import Adviser from './pages/DashboardAdviser/Adviser';
 import Evaluations from './pages/DashboardAdviser/Evaluations';
 import Completed from './pages/DashboardAdviser/Completed';
 import EvaluateForm from './pages/DashboardAdviser/EvaluateForm';
+import AdviserStudentEvaluations from './pages/DashboardAdviser/AdviserStudentEvaluations';
+import AdviserStudentEvaluateForm from './pages/DashboardAdviser/AdviserStudentEvaluateForm';
 
 // Student Pages
 import StudentDashboard from './pages/DashboardStudent/StudentDashboard';
@@ -77,6 +81,17 @@ function App() {
           </ProtectedRoute>
         } />
 
+        <Route path="/teacher/performance" element={
+          <ProtectedRoute allowedRoles={['TEACHER']}>
+            <Performance />
+          </ProtectedRoute>
+        } />
+        <Route path="/teacher/performance/student/:studentId" element={
+          <ProtectedRoute allowedRoles={['TEACHER']}>
+            <StudentPerformance />
+          </ProtectedRoute>
+        } />
+
         <Route path="/teacher/students" element={
           <ProtectedRoute allowedRoles={['TEACHER']}>
             <Students />
@@ -117,6 +132,18 @@ function App() {
         <Route path="/adviser/completed" element={
           <ProtectedRoute allowedRoles={['ADVISER']}>
             <Completed />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/adviser/student-evaluations/:teamId" element={
+          <ProtectedRoute allowedRoles={['ADVISER']}>
+            <AdviserStudentEvaluations />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/adviser/student-evaluate/:teamId/:studentId/:questionnaireId" element={
+          <ProtectedRoute allowedRoles={['ADVISER']}>
+            <AdviserStudentEvaluateForm />
           </ProtectedRoute>
         } />
 

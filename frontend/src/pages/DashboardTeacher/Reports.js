@@ -4,6 +4,8 @@ import { CheckCircle2, Clock3 } from "lucide-react";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { teacherReportAPI } from "../../services/api";
 import { useToast } from "../../contexts/ToastContext";
+import { usePagination } from "../../hooks/usePagination";
+import Pagination from "../../components/Pagination/Pagination";
 import "./Teacher.css";
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/api';
@@ -37,6 +39,15 @@ const Reports = () => {
       return null;
     }
   }, []);
+
+  const adviserEvalsForTeam = useMemo(() => evaluations.filter(e => e.teamName === selectedTeamName), [evaluations, selectedTeamName]);
+  const studentSelfEvalsForTeam = useMemo(() => studentEvaluations.filter(e => e.teamName === selectedTeamName && e.isSelf), [studentEvaluations, selectedTeamName]);
+  const studentPeerEvalsForTeam = useMemo(() => studentEvaluations.filter(e => e.teamName === selectedTeamName && !e.isSelf), [studentEvaluations, selectedTeamName]);
+
+  const { currentPage: curPageQuest, totalPages: totPageQuest, paginatedData: pagQuest, goToPage: goPageQuest } = usePagination(questionnaires, 10);
+  const { currentPage: curPageAdv, totalPages: totPageAdv, paginatedData: pagAdv, goToPage: goPageAdv } = usePagination(adviserEvalsForTeam, 10);
+  const { currentPage: curPageSelf, totalPages: totPageSelf, paginatedData: pagSelf, goToPage: goPageSelf } = usePagination(studentSelfEvalsForTeam, 10);
+  const { currentPage: curPagePeer, totalPages: totPagePeer, paginatedData: pagPeer, goToPage: goPagePeer } = usePagination(studentPeerEvalsForTeam, 10);
 
   useEffect(() => {
     loadQuestionnaires();
@@ -238,6 +249,7 @@ const Reports = () => {
             ) : questionnaires.length === 0 ? (
               <p>No questionnaires found. Create a questionnaire first.</p>
             ) : (
+              <>
               <table className="class-table">
                 <thead>
                   <tr>
@@ -249,7 +261,7 @@ const Reports = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {questionnaires.map((q) => (
+                  {pagQuest.map((q) => (
                     <tr key={q.id}>
                       <td>{q.title}</td>
                       <td>{q.description || "N/A"}</td>
@@ -278,6 +290,8 @@ const Reports = () => {
                   ))}
                 </tbody>
               </table>
+              <Pagination currentPage={curPageQuest} totalPages={totPageQuest} onPageChange={goPageQuest} />
+              </>
             )}
           </div>
         ) : !selectedTeamName ? (
@@ -368,9 +382,10 @@ const Reports = () => {
                 {selectedQuestionnaire.target === 'ADVISER' ? (
                   <div style={{ marginBottom: '40px' }}>
                     <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>Adviser Evaluation</h3>
-                    {evaluations.filter(e => e.teamName === selectedTeamName).length === 0 ? (
+                    {adviserEvalsForTeam.length === 0 ? (
                       <p className="pending">No adviser evaluation for this team yet.</p>
                     ) : (
+                      <>
                       <table className="class-table">
                         <thead>
                           <tr>
@@ -381,7 +396,7 @@ const Reports = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {evaluations.filter(e => e.teamName === selectedTeamName).map((evaluation) => (
+                          {pagAdv.map((evaluation) => (
                             <tr key={evaluation.id}>
                               <td>{evaluation.adviserName}</td>
                               <td>
@@ -408,15 +423,18 @@ const Reports = () => {
                           ))}
                         </tbody>
                       </table>
+                      <Pagination currentPage={curPageAdv} totalPages={totPageAdv} onPageChange={goPageAdv} />
+                      </>
                     )}
                   </div>
                 ) : (
                   <>
                     <div style={{ marginBottom: '40px' }}>
                       <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>Student Self-Evaluations</h3>
-                      {studentEvaluations.filter(e => e.teamName === selectedTeamName && e.isSelf).length === 0 ? (
+                      {studentSelfEvalsForTeam.length === 0 ? (
                         <p className="pending">No student self-evaluations for this team yet.</p>
                       ) : (
+                        <>
                         <table className="class-table">
                           <thead>
                             <tr>
@@ -429,7 +447,7 @@ const Reports = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {studentEvaluations.filter(e => e.teamName === selectedTeamName && e.isSelf).map((evaluation) => (
+                            {pagSelf.map((evaluation) => (
                               <tr key={evaluation.id}>
                                 <td>{evaluation.evaluatorName}</td>
                                 <td>
@@ -462,14 +480,17 @@ const Reports = () => {
                             ))}
                           </tbody>
                         </table>
+                        <Pagination currentPage={curPageSelf} totalPages={totPageSelf} onPageChange={goPageSelf} />
+                        </>
                       )}
                     </div>
 
                     <div>
                       <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>Student Peer Evaluations</h3>
-                      {studentEvaluations.filter(e => e.teamName === selectedTeamName && !e.isSelf).length === 0 ? (
+                      {studentPeerEvalsForTeam.length === 0 ? (
                         <p className="pending">No peer-to-peer evaluations for this team yet.</p>
                       ) : (
+                        <>
                         <table className="class-table">
                           <thead>
                             <tr>
@@ -483,7 +504,7 @@ const Reports = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {studentEvaluations.filter(e => e.teamName === selectedTeamName && !e.isSelf).map((evaluation) => (
+                            {pagPeer.map((evaluation) => (
                               <tr key={evaluation.id}>
                                 <td>{evaluation.evaluatorName}</td>
                                 <td>{evaluation.evaluateeName}</td>
@@ -517,6 +538,8 @@ const Reports = () => {
                             ))}
                           </tbody>
                         </table>
+                        <Pagination currentPage={curPagePeer} totalPages={totPagePeer} onPageChange={goPagePeer} />
+                        </>
                       )}
                     </div>
                   </>

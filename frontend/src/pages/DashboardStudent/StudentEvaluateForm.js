@@ -2,7 +2,10 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import StudentSidebar from "../../components/Sidebar/StudentSidebar";
 import { useToast } from "../../contexts/ToastContext";
+import { generateDecimalRatingRange, generateNumericRange } from "../../utils/ratingUtils";
 import "../DashboardTeacher/Teacher.css";
+import "./StudentResponsive.css";
+import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
 
 const API_BASE_URL = "http://localhost:8080";
 
@@ -21,6 +24,7 @@ const StudentEvaluateForm = () => {
   const [status, setStatus] = useState("IN_PROGRESS");
   
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const currentUser = useMemo(() => {
     const raw = localStorage.getItem("user");
@@ -152,8 +156,11 @@ const StudentEvaluateForm = () => {
       return;
     }
 
-    if (!window.confirm("Are you sure you want to submit all evaluations? You cannot edit them after submission.")) return;
-    
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    setShowConfirmModal(false);
     setSubmitting(true);
     try {
       const token = currentUser?.token;
@@ -191,24 +198,24 @@ const StudentEvaluateForm = () => {
   return (
     <div className="teacher-container">
       <StudentSidebar />
-      <div className="teacher-content" style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: 0 }}>
+      <div className="teacher-content eval-content-wrapper">
         {/* Header */}
-        <div style={{ padding: '20px 40px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="eval-header">
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--dtm-gold)' }}>{questionnaire.title}</h1>
-            <p style={{ margin: '4px 0 0 0', color: 'var(--dtm-muted)', fontSize: '0.9rem' }}>Evaluating all team members</p>
+            <h1 className="eval-title" style={{ margin: 0, color: 'var(--dtm-gold)' }}>{questionnaire.title}</h1>
+            <p className="eval-subtitle" style={{ margin: '4px 0 0 0', color: 'var(--dtm-muted)' }}>Evaluating all team members</p>
           </div>
           <button className="btn-secondary" onClick={() => navigate('/student/dashboard')}>Exit</button>
         </div>
 
         {/* Main Content Pane */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <div className="eval-main-pane">
           
           {/* Left Pane - Section Card */}
-          <div style={{ flex: '0 0 400px', padding: '40px', borderRight: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.01)' }}>
+          <div className="eval-left-pane">
             <div className="evaluation-response-item" style={{ height: 'auto', padding: '30px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
-              <h2 style={{ fontSize: '1.4rem', marginBottom: '20px', lineHeight: '1.4' }}>{currentPage.title}</h2>
-              <p style={{ color: 'var(--dtm-muted)', lineHeight: '1.6', fontSize: '1rem' }}>
+              <h2 className="eval-section-title" style={{ marginBottom: '20px', lineHeight: '1.4' }}>{currentPage.title}</h2>
+              <p className="eval-section-desc" style={{ color: 'var(--dtm-muted)', lineHeight: '1.6' }}>
                 {currentPage.description}
               </p>
             </div>
@@ -230,37 +237,32 @@ const StudentEvaluateForm = () => {
           </div>
 
           {/* Right Pane - Members Rating */}
-          <div style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
+          <div className="eval-right-pane">
             <div style={{ maxWidth: '800px', margin: '0 auto' }}>
               {currentPage.items.map((item) => {
-                const min = item.minScore ?? 1;
-                const max = item.maxScore ?? 5;
-                const range = Array.from({ length: Math.abs(max - min) + 1 }, (_, i) => {
-                  return max > min ? max - i : min - i;
-                });
+                const isRating = item.questionType === "RATING";
+                let finalRange = [];
+                if (isRating) {
+                  finalRange = generateDecimalRatingRange(item.minScore, item.maxScore);
+                } else {
+                  finalRange = generateNumericRange(item.minScore, item.maxScore);
+                }
 
                 return (
                   <div key={item.id} style={{ marginBottom: '40px', padding: '24px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <h3 style={{ fontSize: '1.2rem', marginBottom: '8px', color: 'var(--dtm-text)' }}>{item.questionText}</h3>
+                    <h3 className="eval-question-title" style={{ marginBottom: '8px', color: 'var(--dtm-text)' }}>{item.questionText}</h3>
                     {item.questionDescription && (
-                      <p style={{ color: 'var(--dtm-muted)', fontSize: '0.9rem', marginBottom: '20px' }}>{item.questionDescription}</p>
+                      <p className="eval-question-desc" style={{ color: 'var(--dtm-muted)', marginBottom: '20px' }}>{item.questionDescription}</p>
                     )}
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                       {members.map((member) => (
-                        <div key={member.id} style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          padding: '16px', 
-                          background: 'rgba(0,0,0,0.2)',
-                          borderRadius: '8px',
-                          border: '1px solid rgba(255,255,255,0.03)'
-                        }}>
-                          <div style={{ width: '200px', fontWeight: 500, fontSize: '1.05rem', color: 'var(--dtm-text)' }}>
+                        <div key={member.id} className="student-member-row">
+                          <div className="student-member-name">
                             {member.name} {member.isMe ? <span style={{ color: 'var(--dtm-gold)', fontSize: '0.8rem', marginLeft: '6px' }}>(Self)</span> : ''}
                           </div>
                           
-                          <div style={{ flex: 1 }}>
+                          <div className="student-member-input">
                             {item.questionType === "TEXT" ? (
                               <textarea
                                 className="custom-textarea"
@@ -276,6 +278,7 @@ const StudentEvaluateForm = () => {
                                   return (
                                     <button
                                       key={idx}
+                                      className="eval-choice-btn"
                                       onClick={() => handleScoreChange(member.evaluationId, item.id, choice)}
                                       disabled={isSubmitted}
                                       style={{
@@ -285,8 +288,7 @@ const StudentEvaluateForm = () => {
                                         background: isSelected ? 'rgba(242, 201, 76, 0.1)' : 'rgba(255,255,255,0.02)',
                                         color: isSelected ? 'var(--dtm-gold)' : 'var(--dtm-muted)',
                                         cursor: isSubmitted ? 'default' : 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        fontSize: '0.85rem'
+                                        transition: 'all 0.2s ease'
                                       }}
                                     >
                                       {choice}
@@ -296,25 +298,34 @@ const StudentEvaluateForm = () => {
                               </div>
                             ) : (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                                {range.map((num) => {
+                                {finalRange.map((num) => {
                                   const isSelected = String(answers[member.evaluationId]?.[item.id]) === String(num);
+                                  
+                                  const isChosenByOther = isRating && members.some(otherMem => 
+                                    otherMem.evaluationId !== member.evaluationId && 
+                                    String(answers[otherMem.evaluationId]?.[item.id]) === String(num)
+                                  );
+                                  
+                                  const isDisabled = isSubmitted || isChosenByOther;
+
                                   return (
                                     <label key={num} style={{ 
                                       display: 'flex', 
                                       alignItems: 'center',
                                       gap: '8px', 
-                                      cursor: isSubmitted ? 'default' : 'pointer',
+                                      cursor: isDisabled ? 'not-allowed' : 'pointer',
                                       background: isSelected ? 'rgba(242, 201, 76, 0.1)' : 'transparent',
                                       padding: '6px 12px',
                                       borderRadius: '20px',
                                       border: `1px solid ${isSelected ? 'var(--dtm-gold)' : 'transparent'}`,
-                                      transition: 'all 0.2s ease'
+                                      transition: 'all 0.2s ease',
+                                      opacity: isDisabled && !isSelected ? 0.3 : 1
                                     }}>
                                       <div style={{
                                         width: '18px',
                                         height: '18px',
                                         borderRadius: '50%',
-                                        border: `2px solid ${isSelected ? 'var(--dtm-gold)' : 'rgba(255,255,255,0.3)'}`,
+                                        border: `2px solid ${isSelected ? 'var(--dtm-gold)' : (isDisabled && !isSelected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.3)')}`,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
@@ -325,13 +336,17 @@ const StudentEvaluateForm = () => {
                                           name={`member-${member.id}-item-${item.id}`} 
                                           value={num}
                                           checked={isSelected}
-                                          onChange={() => handleScoreChange(member.evaluationId, item.id, num)}
-                                          disabled={isSubmitted}
+                                          onChange={() => {
+                                            if (!isDisabled) {
+                                              handleScoreChange(member.evaluationId, item.id, num);
+                                            }
+                                          }}
+                                          disabled={isDisabled}
                                           style={{ opacity: 0, position: 'absolute', inset: 0, cursor: 'inherit', margin: 0, width: '100%', height: '100%' }}
                                         />
                                         {isSelected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--dtm-gold)' }} />}
                                       </div>
-                                      <span style={{ fontSize: '0.9rem', color: isSelected ? 'var(--dtm-gold)' : 'var(--dtm-text)', fontWeight: isSelected ? 600 : 400 }}>{num}</span>
+                                      <span className="eval-scale-num" style={{ color: isSelected ? 'var(--dtm-gold)' : 'var(--dtm-text)', fontWeight: isSelected ? 600 : 400 }}>{num}</span>
                                     </label>
                                   );
                                 })}
@@ -349,7 +364,7 @@ const StudentEvaluateForm = () => {
         </div>
 
         {/* Footer Navigation */}
-        <div style={{ padding: '20px 40px', background: 'rgba(255,255,255,0.02)', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="eval-footer">
           <div>
             {!isSubmitted && (
                 <button 
@@ -362,7 +377,7 @@ const StudentEvaluateForm = () => {
             )}
           </div>
 
-          <div>
+          <div className="eval-footer-actions">
             <button 
               className="btn-secondary" 
               onClick={() => setCurrentPageIndex(prev => Math.max(0, prev - 1))}
@@ -394,6 +409,16 @@ const StudentEvaluateForm = () => {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        title="Confirm Submission"
+        message="Are you sure you want to submit all evaluations? You cannot edit them after submission."
+        confirmText="Submit Evaluations"
+        cancelText="Cancel"
+        onConfirm={handleConfirmSubmit}
+        onCancel={() => setShowConfirmModal(false)}
+      />
     </div>
   );
 };

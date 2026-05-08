@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import AdviserSidebar from "../../components/Sidebar/AdviserSidebar";
 import { adviserAPI, questionnaireAPI, teamAPI } from "../../services/api";
+import { usePagination } from "../../hooks/usePagination";
+import Pagination from "../../components/Pagination/Pagination";
 import "./Adviser.css";
 
 const Evaluations = () => {
@@ -33,7 +35,8 @@ const Evaluations = () => {
           return;
         }
 
-        const questionnairesData = await questionnaireAPI.getQuestionnairesByClass(team.classId);
+        const allQuestionnaires = await questionnaireAPI.getQuestionnairesByClass(team.classId);
+        const questionnairesData = allQuestionnaires.filter(q => q.target === 'ADVISER');
         const statusRows = await adviserAPI.getTeamEvaluationStatuses(teamId);
 
         const statusMap = {};
@@ -116,6 +119,8 @@ const Evaluations = () => {
       });
   }, [questionnaires, searchTerm, statusFilter, statusByQuestionnaire]);
 
+  const { currentPage, totalPages, paginatedData, goToPage } = usePagination(filteredQuestionnaires, 10);
+
   const formatDeadline = (dateTimeString) => {
     if (!dateTimeString) return "No deadline";
     return new Date(dateTimeString).toLocaleString([], {
@@ -190,6 +195,7 @@ const Evaluations = () => {
           ) : filteredQuestionnaires.length === 0 ? (
             <p>No questionnaires assigned to this team.</p>
           ) : (
+            <>
             <table className="class-table">
               <thead>
                 <tr>
@@ -204,17 +210,21 @@ const Evaluations = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredQuestionnaires.map((q, index) => {
+                {paginatedData.map((q, index) => {
                   const status = resolveQueueStatus(q);
                   const statusRow = statusByQuestionnaire[q.id];
-                  const progress = statusRow?.progressPercent ?? 0;
-                  const answered = statusRow?.answeredCount ?? 0;
-                  const totalQuestions = statusRow?.totalQuestions ?? 0;
+                  const rawTotalQuestions = statusRow?.totalQuestions ?? 0;
                   const lastUpdated = statusRow?.updatedAt;
+
+                  // If submitted, always show 100% regardless of score count in DB
+                  const isSubmitted = status === "SUBMITTED";
+                  const totalQuestions = rawTotalQuestions;
+                  const answered = isSubmitted ? rawTotalQuestions : (statusRow?.answeredCount ?? 0);
+                  const progress = isSubmitted ? 100 : (statusRow?.progressPercent ?? 0);
 
                   return (
                   <tr key={q.id}>
-                    <td>{index + 1}</td>
+                    <td>{(currentPage - 1) * 10 + index + 1}</td>
                     <td><strong>{q.title}</strong></td>
                     <td>{q.description || "No description"}</td>
                     <td>
@@ -269,6 +279,8 @@ const Evaluations = () => {
                 );})}
               </tbody>
             </table>
+            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
+            </>
           )}
         </div>
       </div>

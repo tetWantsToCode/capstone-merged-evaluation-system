@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { studentAPI, classAPI } from "../../services/api";
 import { useToast } from "../../contexts/ToastContext";
+import { usePagination } from "../../hooks/usePagination";
+import Pagination from "../../components/Pagination/Pagination";
 import "./Teacher.css";
 
 const Students = () => {
@@ -10,6 +12,8 @@ const Students = () => {
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const { currentPage, totalPages, paginatedData, goToPage } = usePagination(students, 10);
 
   useEffect(() => {
     fetchStudents();
@@ -55,6 +59,7 @@ const Students = () => {
           {loading ? (
             <p>Loading students...</p>
           ) : (
+            <>
             <table className="class-table">
               <thead>
                 <tr>
@@ -71,7 +76,7 @@ const Students = () => {
                     <td colSpan="5" style={{ textAlign: 'center' }}>No students found</td>
                   </tr>
                 ) : (
-                  students.map((student) => (
+                  paginatedData.map((student) => (
                     <tr key={student.id}>
                       <td>{student.studentId}</td>
                       <td>{student.firstName}</td>
@@ -91,6 +96,8 @@ const Students = () => {
                 )}
               </tbody>
             </table>
+            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
+            </>
           )}
         </div>
       </div>

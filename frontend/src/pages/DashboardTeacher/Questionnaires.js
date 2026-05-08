@@ -5,15 +5,32 @@ import { questionnaireAPI, classAPI } from "../../services/api";
 import { useToast } from "../../contexts/ToastContext";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
 import QuestionnaireDetailModal from "./QuestionnaireDetailModal";
+import { usePagination } from "../../hooks/usePagination";
+import Pagination from "../../components/Pagination/Pagination";
 import "./Teacher.css";
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/api').replace(/\/api\/?$/, '');
+const LOCAL_API_BASE_URL = 'http://localhost:8080';
+
+const fetchWithLocalFallback = async (path, options = {}) => {
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, options);
+  } catch (error) {
+    if (API_BASE_URL === LOCAL_API_BASE_URL) {
+      throw error;
+    }
+    return fetch(`${LOCAL_API_BASE_URL}${path}`, options);
+  }
+};
 
 const Questionnaires = () => {
   const toast = useToast();
   const navigate = useNavigate();
   const [questionnaires, setQuestionnaires] = useState([]);
   const [classes, setClasses] = useState([]);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedQuestionnaire, setSelectedQuestionnaire] = useState(null);
+  const [selectedClasses, setSelectedClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [confirmModal, setConfirmModal] = useState({
@@ -22,12 +39,11 @@ const Questionnaires = () => {
     message: "",
     onConfirm: null
   });
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [selectedQuestionnaire, setSelectedQuestionnaire] = useState(null);
   const [googleLinked, setGoogleLinked] = useState(false);
-  const [selectedClasses, setSelectedClasses] = useState([]);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedQuestionnaireId, setSelectedQuestionnaireId] = useState(null);
+
+  const { currentPage, totalPages, paginatedData, goToPage } = usePagination(questionnaires, 10);
 
   useEffect(() => {
     fetchQuestionnaires();
@@ -44,7 +60,7 @@ const Questionnaires = () => {
         return false;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/google-auth/status`, {
+      const response = await fetchWithLocalFallback('/api/google-auth/status', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -75,7 +91,6 @@ const Questionnaires = () => {
   const fetchClasses = async () => {
     try {
       const data = await classAPI.getAllClasses();
-      // Filter classes for this teacher only
       const user = JSON.parse(localStorage.getItem('user'));
       if (user && user.id) {
         const teacherClasses = data.filter(c => String(c.teacherId) === String(user.id));
@@ -156,6 +171,16 @@ const Questionnaires = () => {
     setShowAssignModal(true);
   };
 
+  const handleDuplicateQuestionnaire = async (questionnaire) => {
+    try {
+      await questionnaireAPI.duplicateQuestionnaire(questionnaire.id);
+      toast.success('Questionnaire duplicated successfully!');
+      await fetchQuestionnaires();
+    } catch (err) {
+      toast.error('Error duplicating questionnaire: ' + err.message);
+    }
+  };
+
   const openDetailsModal = (id) => {
     setSelectedQuestionnaireId(id);
     setShowDetailsModal(true);
@@ -207,11 +232,11 @@ const Questionnaires = () => {
           ) : questionnaires.length === 0 ? (
             <p>No questionnaires created yet. Click "Create New Questionnaire" to get started.</p>
           ) : (
+            <>
             <table className="class-table">
               <thead>
                 <tr>
                   <th>Title</th>
-                  <th>Assigned Class</th>
                   <th>Target</th>
                   <th>Created Date</th>
                   <th>Deadline</th>
@@ -220,14 +245,9 @@ const Questionnaires = () => {
                 </tr>
               </thead>
               <tbody>
-                {questionnaires.map((q) => (
+                {paginatedData.map((q) => (
                   <tr key={q.id}>
                     <td>{q.title}</td>
-                    <td>
-                      {q.assignedClassNames && q.assignedClassNames.length > 0
-                        ? q.assignedClassNames.join(', ')
-                        : 'Not assigned'}
-                    </td>
                     <td>
                       <span style={{
                         padding: '3px 10px',
@@ -263,18 +283,15 @@ const Questionnaires = () => {
                           View Details
                         </button>
                         <button
-                          className="btn btn-sm btn-assign"
-                          onClick={() => openAssignModal(q)}
-                          disabled={q.isLocked}
-                          title={q.isLocked ? "Cannot assign - questionnaire is locked" : "Assign to classes"}
+                          className="btn btn-sm"
+                          onClick={() => handleDuplicateQuestionnaire(q)}
                         >
-                          Assign
+                          Duplicate
                         </button>
                         <button
                           className="btn btn-sm btn-danger"
                           onClick={() => handleDeleteQuestionnaire(q.id)}
-                          disabled={q.isLocked}
-                          title={q.isLocked ? "Cannot delete - questionnaire is locked" : "Delete"}
+                          title="Delete"
                         >
                           Delete
                         </button>
@@ -284,6 +301,8 @@ const Questionnaires = () => {
                 ))}
               </tbody>
             </table>
+            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} />
+            </>
           )}
         </div>
 

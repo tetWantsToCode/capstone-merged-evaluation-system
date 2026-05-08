@@ -55,9 +55,10 @@ public class Questionnaire {
 
     public enum QuestionnaireTarget {
         ADVISER,
-        STUDENT
+        STUDENT,
+        ADVISER_STUDENT
     }
-
+    
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

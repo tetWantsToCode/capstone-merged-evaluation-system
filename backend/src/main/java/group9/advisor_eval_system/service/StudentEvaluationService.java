@@ -23,6 +23,10 @@ public class StudentEvaluationService {
     private final QuestionnaireItemRepository questionnaireItemRepository;
     private final QuestionnaireService questionnaireService;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private UserManagementService userManagementService;
+
     public Student getStudentByEmail(String email) {
         return studentRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Student profile not found for email: " + email));
@@ -169,7 +173,15 @@ public class StudentEvaluationService {
         evaluation.setStatus(StudentEvaluation.EvaluationStatus.SUBMITTED);
         evaluation.setSubmittedAt(LocalDateTime.now());
         
-        return studentEvaluationRepository.save(evaluation);
+        StudentEvaluation submitted = studentEvaluationRepository.save(evaluation);
+
+        if (evaluation.getQuestionnaire() != null && evaluation.getQuestionnaire().getCreatedByTeacher() != null) {
+            userManagementService.asyncSyncAllDataToGoogleSheets(
+                evaluation.getQuestionnaire().getCreatedByTeacher().getEmail()
+            );
+        }
+
+        return submitted;
     }
 
     private void autoGradeEvaluation(StudentEvaluation evaluation) {
@@ -298,5 +310,45 @@ public class StudentEvaluationService {
                 .teamName(teamName)
                 .summaries(summaries)
                 .build();
+    }
+
+    public String getStudentOwnScoreSummary(Long studentId, Long questionnaireId) {
+        Optional<StudentEvaluation> evalOpt = studentEvaluationRepository.findByStudentIdAndQuestionnaireIdAndEvaluateeIsNull(studentId, questionnaireId);
+        if (evalOpt.isPresent() && evalOpt.get().getStatus() == StudentEvaluation.EvaluationStatus.SUBMITTED) {
+            StudentEvaluation eval = evalOpt.get();
+            List<StudentEvaluationScore> scores = studentEvaluationScoreRepository.findByStudentEvaluationId(eval.getId());
+            
+            if (scores == null || scores.isEmpty()) return "Answered";
+
+            boolean hasPoints = false;
+            int totalPoints = 0;
+            double totalNumeric = 0;
+            int numericCount = 0;
+            
+            for (StudentEvaluationScore score : scores) {
+                if (score.getPointsAwarded() != null && score.getPointsAwarded() > 0) {
+                    hasPoints = true;
+                    totalPoints += score.getPointsAwarded();
+                } else if (score.getIsCorrect() != null && score.getIsCorrect()) {
+                    hasPoints = true;
+                }
+                
+                if (score.getNumericScore() != null) {
+                    totalNumeric += score.getNumericScore();
+                    numericCount++;
+                }
+            }
+            
+            if (hasPoints) {
+                return String.valueOf(totalPoints);
+            } else if (numericCount > 0) {
+                return String.format("%.2f", totalNumeric / numericCount);
+            } else {
+                return "Answered";
+            }
+        } else if (evalOpt.isPresent() && evalOpt.get().getStatus() == StudentEvaluation.EvaluationStatus.IN_PROGRESS) {
+            return "In Progress";
+        }
+        return "Not Started";
     }
 }

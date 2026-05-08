@@ -21,33 +21,31 @@ public class AiChatService {
         private static final int MAX_SAMPLE_GENERAL_COMMENTS = 5;
 
         private static final Set<String> OUT_OF_SCOPE_KEYWORDS = new HashSet<>(Arrays.asList(
-                "cook", "recipe", "food", "cooking", "baking", "dish", "cuisine",
-                "music", "song", "singer", "band", "concert",
-                "movie", "film", "actor", "actress", "cinema",
-                "sports", "basketball", "football", "soccer", "golf",
-                "travel", "vacation", "hotel", "airline", "destination",
-                "programming tutorial", "coding lesson", "software engineering course",
-                "math homework", "physics homework", "chemistry homework",
-                "pokemon", "gaming", "video game", "game", "stream",
-                "dating", "relationship", "love", "romance",
-                "joke", "funny", "meme", "laugh",
-                "weather", "forecast", "climate",
-                "news", "politics", "election",
-                "meditation", "yoga", "fitness", "workout",
-                "translate", "translation", "language",
-                "write a story", "write a poem", "write a song",
-                "generate image", "create image"
-        ));
+                        "cook", "recipe", "food", "cooking", "baking", "dish", "cuisine",
+                        "music", "song", "singer", "band", "concert",
+                        "movie", "film", "actor", "actress", "cinema",
+                        "sports", "basketball", "football", "soccer", "golf",
+                        "travel", "vacation", "hotel", "airline", "destination",
+                        "programming tutorial", "coding lesson", "software engineering course",
+                        "math homework", "physics homework", "chemistry homework",
+                        "pokemon", "gaming", "video game", "game", "stream",
+                        "dating", "relationship", "love", "romance",
+                        "joke", "funny", "meme", "laugh",
+                        "weather", "forecast", "climate",
+                        "news", "politics", "election",
+                        "meditation", "yoga", "fitness", "workout",
+                        "translate", "translation", "language",
+                        "write a story", "write a poem", "write a song",
+                        "generate image", "create image"));
 
         private static final Set<String> SYSTEM_SCOPE_KEYWORDS = new HashSet<>(Arrays.asList(
-                "evaluation", "questionnaire", "survey", "form", "assessment",
-                "adviser", "advisor", "feedback", "response", "report",
-                "respondent", "team", "performance", "score", "rating",
-                "question", "answer", "comment", "submission",
-                "rubric", "scale", "likert", "criteria", "benchmark",
-                "summary", "analysis", "insight", "trend", "average",
-                "strength", "weakness", "issue", "concern", "recommendation"
-        ));
+                        "evaluation", "questionnaire", "survey", "form", "assessment",
+                        "adviser", "advisor", "feedback", "response", "report",
+                        "respondent", "team", "performance", "score", "rating",
+                        "question", "answer", "comment", "submission",
+                        "rubric", "scale", "likert", "criteria", "benchmark",
+                        "summary", "analysis", "insight", "trend", "average",
+                        "strength", "weakness", "issue", "concern", "recommendation"));
 
         private final GeminiClient geminiClient;
         private final SchoolClassRepository schoolClassRepository;
@@ -70,7 +68,7 @@ public class AiChatService {
                 }
 
                 log.info("Building AI context for userId={} role={}", user.getId(), user.getRole());
-                
+
                 String primaryContext = "";
                 String evaluationContext = "";
 
@@ -113,7 +111,8 @@ public class AiChatService {
                                 "- If required info is missing, ask at most 1-2 clarifying questions.",
                                 "",
                                 "You will be given:",
-                                "- " + (user.getRole() == User.UserRole.STUDENT ? "Student" : "Teacher") + " context (read-only)",
+                                "- " + (user.getRole() == User.UserRole.STUDENT ? "Student" : "Teacher")
+                                                + " context (read-only)",
                                 "- Evaluation data summary (read-only) — computed from submitted respondent evaluations",
                                 "- Optional report/questionnaire context (read-only)",
                                 "- Optional conversation history",
@@ -129,7 +128,8 @@ public class AiChatService {
                                 modeInstruction);
 
                 List<String> promptParts = new ArrayList<>();
-                promptParts.add((user.getRole() == User.UserRole.STUDENT ? "Student" : "Teacher") + " context (read-only):\n" + safeBlock(primaryContext));
+                promptParts.add((user.getRole() == User.UserRole.STUDENT ? "Student" : "Teacher")
+                                + " context (read-only):\n" + safeBlock(primaryContext));
 
                 if (evaluationContext != null && !evaluationContext.isBlank()) {
                         promptParts.add("Evaluation data summary (read-only):\n" + safeBlock(evaluationContext));
@@ -147,7 +147,8 @@ public class AiChatService {
 
                 String userPrompt = String.join("\n\n---\n\n", promptParts);
 
-                String rawReply = geminiClient.generateText(systemInstruction, userPrompt);
+                String rawReply = geminiClient.generateText(systemInstruction, userPrompt,
+                                user.getAiApiKey(), user.getAiProvider());
                 return makePresentableText(rawReply);
         }
 
@@ -228,20 +229,25 @@ public class AiChatService {
                 // Check if message contains out-of-scope keywords
                 for (String keyword : OUT_OF_SCOPE_KEYWORDS) {
                         if (normalized.contains(keyword)) {
-                                return "I can only help with topics related to the Adviser Evaluation System, such as questionnaires, " +
-                                        "evaluations, respondent feedback, reports, and performance analysis. " +
-                                        "Unfortunately, I cannot assist with that request.";
+                                return "I can only help with topics related to the Adviser Evaluation System, such as questionnaires, "
+                                                +
+                                                "evaluations, respondent feedback, reports, and performance analysis. "
+                                                +
+                                                "Unfortunately, I cannot assist with that request.";
                         }
                 }
 
-                // If it's clearly a system context (like from Reports or AI Assistant page), allow it
+                // If it's clearly a system context (like from Reports or AI Assistant page),
+                // allow it
                 String normalizedCtx = (contextType == null ? "" : contextType.toLowerCase(Locale.ROOT));
-                if (normalizedCtx.contains("report") || normalizedCtx.contains("response") || normalizedCtx.contains("questionnaire")) {
+                if (normalizedCtx.contains("report") || normalizedCtx.contains("response")
+                                || normalizedCtx.contains("questionnaire")) {
                         return null; // In expected context
                 }
 
                 // For GENERAL_CHAT, check if message matches ANY system keywords
-                // If it doesn't mention evaluation/system topics at all, it's likely out-of-scope
+                // If it doesn't mention evaluation/system topics at all, it's likely
+                // out-of-scope
                 boolean hasSystemKeyword = false;
                 for (String keyword : SYSTEM_SCOPE_KEYWORDS) {
                         if (normalized.contains(keyword)) {
@@ -253,7 +259,7 @@ public class AiChatService {
                 // Allow if it has system keywords or is very short (greeting, etc.)
                 if (!hasSystemKeyword && message.length() > 10) {
                         return "I'm here to help with the Adviser Evaluation System. " +
-                                "Please ask about questionnaires, evaluations, reports, adviser feedback, or assessment-related topics.";
+                                        "Please ask about questionnaires, evaluations, reports, adviser feedback, or assessment-related topics.";
                 }
 
                 return null; // Within scope
@@ -335,7 +341,8 @@ public class AiChatService {
         private String buildStudentContext(User user) {
                 // Fetch student info
                 Student student = studentRepository.findByEmail(user.getEmail()).orElse(null);
-                if (student == null) return "studentId=" + user.getId() + "\nrole=STUDENT\n(Profile not found)";
+                if (student == null)
+                        return "studentId=" + user.getId() + "\nrole=STUDENT\n(Profile not found)";
 
                 String teamName = student.getTeamStudents() != null && !student.getTeamStudents().isEmpty()
                                 ? student.getTeamStudents().get(0).getTeam().getName()
@@ -350,19 +357,22 @@ public class AiChatService {
 
         private String buildStudentEvaluationSummary(User user) {
                 Student student = studentRepository.findByEmail(user.getEmail()).orElse(null);
-                if (student == null) return "No evaluation data found.";
+                if (student == null)
+                        return "No evaluation data found.";
 
                 // This logic is similar to getStudentReportSummary in service
-                // But I'll do it here to keep AiChatService self-contained or I could inject the service.
+                // But I'll do it here to keep AiChatService self-contained or I could inject
+                // the service.
                 // For now, I'll implement a concise version.
-                
+
                 // For AI, we want a text summary of feedback received
                 StringBuilder sb = new StringBuilder();
                 sb.append("Feedback and scores RECEIVED by this student:\n");
 
                 // Peer evaluations where student is evaluatee
-                List<StudentEvaluation> evalsReceived = studentEvaluationRepository.findByEvaluateeIdAndStatus(student.getId(), StudentEvaluation.EvaluationStatus.SUBMITTED);
-                
+                List<StudentEvaluation> evalsReceived = studentEvaluationRepository.findByEvaluateeIdAndStatus(
+                                student.getId(), StudentEvaluation.EvaluationStatus.SUBMITTED);
+
                 if (evalsReceived.isEmpty()) {
                         return "No peer evaluations have been submitted for you yet.";
                 }
@@ -376,9 +386,11 @@ public class AiChatService {
                         if (eval.getScores() != null) {
                                 for (StudentEvaluationScore score : eval.getScores()) {
                                         if (score.getNumericScore() != null) {
-                                                qScores.computeIfAbsent(eval.getQuestionnaire().getId(), k -> new ArrayList<>()).add(score.getNumericScore());
+                                                qScores.computeIfAbsent(eval.getQuestionnaire().getId(),
+                                                                k -> new ArrayList<>()).add(score.getNumericScore());
                                         }
-                                        if (score.getTextResponse() != null && !score.getTextResponse().trim().isEmpty()) {
+                                        if (score.getTextResponse() != null
+                                                        && !score.getTextResponse().trim().isEmpty()) {
                                                 allComments.add(score.getTextResponse());
                                         }
                                 }
@@ -390,13 +402,15 @@ public class AiChatService {
                         List<Double> scores = qScores.get(qId);
                         if (scores != null && !scores.isEmpty()) {
                                 double avg = scores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
-                                sb.append("- Average score received from peers: ").append(String.format("%.2f", avg)).append("\n");
+                                sb.append("- Average score received from peers: ").append(String.format("%.2f", avg))
+                                                .append("\n");
                         }
                 }
 
                 if (!allComments.isEmpty()) {
                         sb.append("\nComments received from peers:\n");
-                        allComments.stream().distinct().limit(10).forEach(c -> sb.append("- \"").append(c).append("\"\n"));
+                        allComments.stream().distinct().limit(10)
+                                        .forEach(c -> sb.append("- \"").append(c).append("\"\n"));
                 }
 
                 return sb.toString();
@@ -433,7 +447,8 @@ public class AiChatService {
 
                         List<QuestionnaireItem> items = q.getItems() != null
                                         ? q.getItems().stream()
-                                                        .sorted(Comparator.comparingInt(QuestionnaireItem::getOrderIndex))
+                                                        .sorted(Comparator
+                                                                        .comparingInt(QuestionnaireItem::getOrderIndex))
                                                         .collect(Collectors.toList())
                                         : Collections.emptyList();
 
@@ -667,9 +682,11 @@ public class AiChatService {
                                                 .append(" avg=")
                                                 .append(String.format(Locale.US, "%.2f", average))
                                                 .append(" min=")
-                                                .append(String.format(Locale.US, "%.2f", numericMin == null ? 0.0 : numericMin))
+                                                .append(String.format(Locale.US, "%.2f",
+                                                                numericMin == null ? 0.0 : numericMin))
                                                 .append(" max=")
-                                                .append(String.format(Locale.US, "%.2f", numericMax == null ? 0.0 : numericMax));
+                                                .append(String.format(Locale.US, "%.2f",
+                                                                numericMax == null ? 0.0 : numericMax));
 
                                 if (minScore != null || maxScore != null) {
                                         line.append(" scale=")

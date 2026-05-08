@@ -29,6 +29,9 @@ public class QuestionnaireSection {
     @Column(nullable = false)
     private Integer orderIndex; // For sorting sections
     
+    @Column(nullable = false)
+    private Boolean evaluateIndividuals = false; // True = evaluate each student individually in this section
+    
     // Relationships
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "questionnaire_id", nullable = false)

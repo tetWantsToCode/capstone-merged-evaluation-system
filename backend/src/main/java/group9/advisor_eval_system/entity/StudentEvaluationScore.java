@@ -49,7 +49,7 @@ public class StudentEvaluationScore {
     private StudentEvaluation studentEvaluation;
 
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "questionnaire_item_id", nullable = false)
+    @JoinColumn(name = "questionnaire_item_id", nullable = true)
     @JsonIgnore
     @lombok.ToString.Exclude
     @lombok.EqualsAndHashCode.Exclude

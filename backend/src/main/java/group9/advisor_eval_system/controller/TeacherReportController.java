@@ -1,6 +1,7 @@
 package group9.advisor_eval_system.controller;
 
 import group9.advisor_eval_system.dto.EvaluationResponse;
+import group9.advisor_eval_system.dto.EvaluationScoreDto;
 import group9.advisor_eval_system.dto.PendingEvaluationDto;
 import group9.advisor_eval_system.dto.StudentEvaluationResponse;
 import group9.advisor_eval_system.entity.Evaluation;
@@ -135,6 +136,9 @@ public class TeacherReportController {
             Map<String, Map<String, Object>> consolidated = new HashMap<>();
             
             evaluations.forEach(e -> {
+                // Skip adviser-created student evals (student is null, adviser is set)
+                if (e.getStudent() == null) return;
+
                 String evaluatorId = e.getStudent().getId().toString();
                 boolean isSelf = (e.getEvaluatee() == null) || (e.getEvaluatee().getId().equals(e.getStudent().getId()));
                 
@@ -255,7 +259,7 @@ public class TeacherReportController {
                         .body(Map.of("error", "Only teachers can access reports"));
             }
 
-            Evaluation evaluation = evaluationRepository.findById(evaluationId)
+            Evaluation evaluation = evaluationRepository.findByIdWithFullDetails(evaluationId)
                     .orElseThrow(() -> new RuntimeException("Evaluation not found"));
 
             if (!evaluation.getQuestionnaire().getCreatedByTeacher().getId().equals(teacherId)) {
@@ -264,6 +268,33 @@ public class TeacherReportController {
             }
 
             EvaluationResponse response = EvaluationResponse.fromEntity(evaluation);
+
+            // Populate per-student scores for individual sections
+            if (evaluation.getQuestionnaire() != null
+                    && evaluation.getTeam() != null
+                    && evaluation.getAdviser() != null) {
+                List<StudentEvaluation> individualEvals = studentEvaluationRepository
+                        .findByAdviserIdAndTeamIdAndQuestionnaireIdWithScores(
+                                evaluation.getAdviser().getId(),
+                                evaluation.getTeam().getId(),
+                                evaluation.getQuestionnaire().getId());
+
+                List<EvaluationResponse.IndividualStudentScores> indScores = individualEvals.stream()
+                        .filter(se -> se.getEvaluatee() != null)
+                        .map(se -> {
+                            String studentName = se.getEvaluatee().getFirstName() + " " + se.getEvaluatee().getLastName();
+                            List<EvaluationScoreDto> scoreDtos = new ArrayList<>(se.getScores()).stream()
+                                    .map(EvaluationScoreDto::fromStudentScore)
+                                    .filter(s -> s != null)
+                                    .collect(Collectors.toList());
+                            return new EvaluationResponse.IndividualStudentScores(
+                                    se.getEvaluatee().getId(), studentName, scoreDtos);
+                        })
+                        .collect(Collectors.toList());
+
+                response.setIndividualStudentScores(indScores);
+            }
+
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error fetching evaluation details", e);

@@ -38,26 +38,45 @@ public class StudentEvaluation {
     private LocalDateTime updatedAt;
 
     // Relationships
+
+    // The student evaluator (used for peer-to-peer evals — null for adviser evals)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "student_id", nullable = false)
+    @JoinColumn(name = "student_id", nullable = true)
     @JsonIgnore
     @lombok.ToString.Exclude
     @lombok.EqualsAndHashCode.Exclude
     private Student student;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "questionnaire_id", nullable = false)
+    @JoinColumn(name = "questionnaire_id", nullable = true)
     @JsonIgnore
     @lombok.ToString.Exclude
     @lombok.EqualsAndHashCode.Exclude
     private Questionnaire questionnaire;
 
+    // The student being evaluated
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "evaluatee_id", nullable = true)
     @JsonIgnore
     @lombok.ToString.Exclude
     @lombok.EqualsAndHashCode.Exclude
     private Student evaluatee;
+
+    // The adviser evaluator (used for adviser-student evals — null for peer evals)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "adviser_id", nullable = true)
+    @JsonIgnore
+    @lombok.ToString.Exclude
+    @lombok.EqualsAndHashCode.Exclude
+    private User adviser;
+
+    // The team context (used for adviser-student evals — null for peer evals)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_id", nullable = true)
+    @JsonIgnore
+    @lombok.ToString.Exclude
+    @lombok.EqualsAndHashCode.Exclude
+    private Team team;
 
     @OneToMany(mappedBy = "studentEvaluation", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore

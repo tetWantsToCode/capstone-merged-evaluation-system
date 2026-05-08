@@ -1,6 +1,7 @@
 package group9.advisor_eval_system.dto;
 
 import group9.advisor_eval_system.entity.Evaluation;
+import group9.advisor_eval_system.entity.Team;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -29,6 +30,36 @@ public class EvaluationResponse {
     private LocalDateTime submittedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private TeamInfo team; // Include full team with students for mixed questionnaires
+    private List<IndividualStudentScores> individualStudentScores; // Per-student scores for individual sections
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class IndividualStudentScores {
+        private Long studentId;
+        private String studentName;
+        private List<EvaluationScoreDto> scores;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TeamInfo {
+        private Long id;
+        private String name;
+        private List<TeamStudentInfo> teamStudents;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TeamStudentInfo {
+        private Long studentId;
+        private String firstName;
+        private String lastName;
+        private String studentNumber;
+    }
 
     public static EvaluationResponse fromEntity(Evaluation evaluation) {
         if (evaluation == null) {
@@ -46,6 +77,28 @@ public class EvaluationResponse {
                 if (evaluation.getTeam().getSchoolClass() != null) {
                     dto.setClassName(evaluation.getTeam().getSchoolClass().getName());
                 }
+                
+                // Populate full team object with students
+                TeamInfo teamInfo = new TeamInfo();
+                teamInfo.setId(evaluation.getTeam().getId());
+                teamInfo.setName(evaluation.getTeam().getName());
+                
+                if (evaluation.getTeam().getTeamStudents() != null && !evaluation.getTeam().getTeamStudents().isEmpty()) {
+                    teamInfo.setTeamStudents(
+                        evaluation.getTeam().getTeamStudents().stream()
+                            .filter(ts -> ts != null && ts.getStudent() != null)
+                            .map(ts -> new TeamStudentInfo(
+                                ts.getStudent().getId(),
+                                ts.getStudent().getFirstName(),
+                                ts.getStudent().getLastName(),
+                                ts.getStudent().getStudentId()
+                            ))
+                            .collect(Collectors.toList())
+                    );
+                } else {
+                    teamInfo.setTeamStudents(new ArrayList<>());
+                }
+                dto.setTeam(teamInfo);
             }
         } catch (Exception e) {
             // Team info not available

@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { authAPI } from "../../services/api";
-import { LayoutDashboard, Users } from "lucide-react";
+import { LayoutDashboard, Users, Menu, X } from "lucide-react";
 import "./Sidebar.css";
 
 const StudentSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(null);
   const menuRef = useRef(null);
 
@@ -39,6 +40,7 @@ const StudentSidebar = () => {
   };
 
   const handleNavigate = (path) => {
+    setIsOpen(false);
     navigate(path);
   };
 
@@ -54,8 +56,25 @@ const StudentSidebar = () => {
     { label: "My Team", icon: Users, path: "/student/team" }
   ];
 
+  const isEvaluatePage = location.pathname.includes('/student/evaluate');
+
   return (
-    <div className="sidebar sidebar--student">
+    <>
+      {!isEvaluatePage && (
+        <button 
+          className="mobile-menu-btn" 
+          onClick={() => setIsOpen(!isOpen)}
+          aria-label="Toggle Menu"
+        >
+          {isOpen ? <X size={18} /> : <Menu size={18} />}
+        </button>
+      )}
+
+      {isOpen && (
+        <div className="sidebar-overlay" onClick={() => setIsOpen(false)} />
+      )}
+
+      <div className={`sidebar sidebar--student ${isOpen ? 'is-open' : ''}`}>
       <h2>Student Panel</h2>
       <ul>
         {menuItems.map((item) => (
@@ -87,6 +106,7 @@ const StudentSidebar = () => {
         )}
       </div>
     </div>
+    </>
   );
 };
 
