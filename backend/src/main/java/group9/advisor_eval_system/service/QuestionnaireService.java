@@ -430,18 +430,25 @@ public class QuestionnaireService {
         }
         evaluationRepository.saveAll(evaluations);
 
-        // Hard delete all student evaluations for this questionnaire.
-        // CascadeType.ALL on StudentEvaluation.scores will also delete their StudentEvaluationScore rows,
-        // so we do NOT need to disconnect scores separately — just delete the parent records.
+        // Disconnect all student evaluation scores from questionnaire items
+        List<StudentEvaluationScore> studentEvaluationScores = studentEvaluationScoreRepository.findByQuestionnaireId(questionnaireId);
+        for (StudentEvaluationScore score : studentEvaluationScores) {
+            score.setQuestionnaireItem(null);
+        }
+        studentEvaluationScoreRepository.saveAll(studentEvaluationScores);
+
+        // Disconnect all student evaluations from this questionnaire
         List<StudentEvaluation> studentEvaluations = studentEvaluationRepository.findByQuestionnaireId(questionnaireId);
-        studentEvaluationRepository.deleteAll(studentEvaluations);
-        studentEvaluationRepository.flush();
+        for (StudentEvaluation studentEvaluation : studentEvaluations) {
+            studentEvaluation.setQuestionnaire(null);
+        }
+        studentEvaluationRepository.saveAll(studentEvaluations);
 
         // Hard delete the questionnaire (cascades to items and sections)
         questionnaireRepository.deleteById(questionnaireId);
 
-        log.info("Hard deleted questionnaire {} — disconnected {} evaluations/{} eval scores, hard-deleted {} student evaluations",
-                questionnaireId, evaluations.size(), evaluationScores.size(), studentEvaluations.size());
+        log.info("Hard deleted questionnaire {} and disconnected {} evaluations, {} student evaluations, {} evaluation scores, and {} student evaluation scores",
+                questionnaireId, evaluations.size(), studentEvaluations.size(), evaluationScores.size(), studentEvaluationScores.size());
 
         userManagementService.asyncSyncAllDataToGoogleSheets(questionnaire.getCreatedByTeacher().getEmail());
     }
