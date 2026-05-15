@@ -14,14 +14,15 @@ public class CorsConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Allow common dev origins. Using patterns prevents "Failed to fetch" when the
-        // app
-        // is opened via 127.0.0.1 or a different dev-server port.
+        // Allow dev and production origins
         configuration.setAllowedOriginPatterns(Arrays.asList(
                 "http://localhost:*",
-                "http://127.0.0.1:*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                "http://127.0.0.1:*",
+                "https://*.vercel.app",
+                "https://*.railway.app"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
