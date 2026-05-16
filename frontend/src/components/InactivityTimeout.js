@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { authAPI } from '../services/api';
@@ -55,7 +55,7 @@ const InactivityTimeout = ({ timeout = 3600000 }) => { // Default to 1 hour (360
         document.removeEventListener(event, handleActivity);
       });
     };
-  }, [location.pathname, timeout]);
+  }, [isAuthPage, resetTimer, location.pathname, timeout]);
 
   return null;
 };
