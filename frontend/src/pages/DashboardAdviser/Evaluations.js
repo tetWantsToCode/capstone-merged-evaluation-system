@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import AdviserSidebar from "../../components/Sidebar/AdviserSidebar";
 import { adviserAPI, questionnaireAPI, teamAPI } from "../../services/api";
@@ -58,7 +58,7 @@ const Evaluations = () => {
     loadQuestionnaires();
   }, [teamId]);
 
-  const resolveQueueStatus = (questionnaire) => {
+  const resolveQueueStatus = useCallback((questionnaire) => {
     const statusRow = statusByQuestionnaire[questionnaire.id];
     if (statusRow?.status) {
       return statusRow.status;
@@ -67,7 +67,7 @@ const Evaluations = () => {
       return "LOCKED";
     }
     return "READY";
-  };
+  }, [statusByQuestionnaire]);
 
   const statusCounts = useMemo(() => {
     const counts = {
@@ -84,7 +84,7 @@ const Evaluations = () => {
     });
 
     return counts;
-  }, [questionnaires, statusByQuestionnaire]);
+  }, [questionnaires, statusByQuestionnaire, resolveQueueStatus]);
 
   const filteredQuestionnaires = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -117,7 +117,7 @@ const Evaluations = () => {
         const bUpdated = new Date(statusByQuestionnaire[b.id]?.updatedAt || 0).getTime();
         return bUpdated - aUpdated;
       });
-  }, [questionnaires, searchTerm, statusFilter, statusByQuestionnaire]);
+  }, [questionnaires, searchTerm, statusFilter, statusByQuestionnaire, resolveQueueStatus]);
 
   const { currentPage, totalPages, paginatedData, goToPage } = usePagination(filteredQuestionnaires, 10);
 
