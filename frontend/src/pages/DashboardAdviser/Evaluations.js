@@ -84,7 +84,7 @@ const Evaluations = () => {
     });
 
     return counts;
-  }, [questionnaires, statusByQuestionnaire, resolveQueueStatus]);
+  }, [questionnaires, resolveQueueStatus]);
 
   const filteredQuestionnaires = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();

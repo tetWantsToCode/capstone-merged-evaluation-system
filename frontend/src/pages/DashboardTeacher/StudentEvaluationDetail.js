@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { teacherReportAPI } from "../../services/api";
@@ -45,7 +45,7 @@ const parseAiFeedbackSections = (feedbackText) => {
       return;
     }
 
-    const colonSectionMatch = line.match(/^([A-Za-z][A-Za-z\s/&()\-]{1,60}):\s*(.*)$/);
+    const colonSectionMatch = line.match(/^([A-Za-z][A-Za-z\s/&()-]{1,60}):\s*(.*)$/);
     if (colonSectionMatch && !line.startsWith("- ") && !line.startsWith("• ")) {
       const sectionTitle = colonSectionMatch[1].trim();
       const sectionValue = colonSectionMatch[2].trim();
@@ -116,13 +116,24 @@ const StudentEvaluationDetail = () => {
   };
 
   useEffect(() => {
+    const loadEvaluation = async () => {
+      try {
+        setLoading(true);
+        const data = await teacherReportAPI.getStudentEvaluationDetails(evaluationId);
+        setEvaluation(data);
+      } catch (err) {
+        setError("Failed to load evaluation: " + err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     loadEvaluation();
   }, [evaluationId]);
 
   useEffect(() => {
-    if (evaluation && token) {
-      generateAiFeedback(evaluation);
-    }
+    if (!evaluation || !token) return;
+    generateAiFeedback(evaluation);
   }, [evaluation, token]);
 
   useEffect(() => {
@@ -145,18 +156,6 @@ const StudentEvaluationDetail = () => {
       window.removeEventListener("keydown", handleEscape);
     };
   }, [isInfoModalOpen]);
-
-  const loadEvaluation = async () => {
-    try {
-      setLoading(true);
-      const data = await teacherReportAPI.getStudentEvaluationDetails(evaluationId);
-      setEvaluation(data);
-    } catch (err) {
-      setError("Failed to load evaluation: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const toSortedNumber = (value) => {
     const parsed = Number(value);
@@ -181,7 +180,71 @@ const StudentEvaluationDetail = () => {
     return parts.length ? parts.join(" | ") : "Not answered";
   };
 
-  const buildQuestionAnswerRows = (evalData) => {
+  const questionAnswerRows = useMemo(() => {
+    const buildQuestionAnswerRows = (evalData) => {
+      if (!evalData) return [];
+      const questionnaire = evalData.questionnaire || {};
+      const scores = Array.isArray(evalData.scores) ? evalData.scores : [];
+      const sections = Array.isArray(questionnaire.sections) ? questionnaire.sections : [];
+      const standaloneItems = Array.isArray(questionnaire.items) ? questionnaire.items : [];
+
+      const scoreByItemId = new Map(
+        scores
+          .filter((score) => score.questionnaireItemId !== null && score.questionnaireItemId !== undefined)
+          .map((score) => [score.questionnaireItemId, score])
+      );
+
+      const rows = [];
+      sections
+        .slice()
+        .sort((a, b) => toSortedNumber(a.orderIndex) - toSortedNumber(b.orderIndex))
+        .forEach((section) => {
+          const sectionItems = Array.isArray(section.items) ? section.items : [];
+          sectionItems
+            .slice()
+            .sort((a, b) => toSortedNumber(a.orderIndex) - toSortedNumber(b.orderIndex))
+            .forEach((item) => {
+              const score = scoreByItemId.get(item.id);
+              const hasNumericAnswer = score?.numericScore !== null && score?.numericScore !== undefined;
+              const hasTextAnswer = !!(score?.textResponse && score.textResponse.trim());
+              rows.push({
+                key: item.id ?? `section-${section.id}-${rows.length}`,
+                sectionTitle: section.sectionTitle || null,
+                questionText: item.questionText || score?.questionText || "Untitled question",
+                answerText: formatAnswerValue(score, item),
+                hasNumericAnswer,
+                hasTextAnswer,
+                isAnswered: hasNumericAnswer || hasTextAnswer,
+              });
+            });
+        });
+
+      standaloneItems
+        .slice()
+        .sort((a, b) => toSortedNumber(a.orderIndex) - toSortedNumber(b.orderIndex))
+        .forEach((item) => {
+          const score = scoreByItemId.get(item.id);
+          const hasNumericAnswer = score?.numericScore !== null && score?.numericScore !== undefined;
+          const hasTextAnswer = !!(score?.textResponse && score.textResponse.trim());
+          rows.push({
+            key: item.id ?? `item-${rows.length}`,
+            sectionTitle: null,
+            questionText: item.questionText || score?.questionText || "Untitled question",
+            answerText: formatAnswerValue(score, item),
+            hasNumericAnswer,
+            hasTextAnswer,
+            isAnswered: hasNumericAnswer || hasTextAnswer,
+          });
+        });
+
+      return rows;
+    };
+
+    return buildQuestionAnswerRows(evaluation);
+  }, [evaluation]);
+
+  // Helper function for building AI context - extracted to avoid issues in render
+  const buildQuestionAnswerRowsForAi = (evalData) => {
     if (!evalData) return [];
     const questionnaire = evalData.questionnaire || {};
     const scores = Array.isArray(evalData.scores) ? evalData.scores : [];
@@ -239,8 +302,6 @@ const StudentEvaluationDetail = () => {
 
     return rows;
   };
-
-  const questionAnswerRows = useMemo(() => buildQuestionAnswerRows(evaluation), [evaluation]);
 
   const summarySnapshot = useMemo(() => {
     if (!evaluation) return {};
@@ -353,7 +414,7 @@ const StudentEvaluationDetail = () => {
   };
 
   const buildAiContext = (evalData) => {
-    const rows = buildQuestionAnswerRows(evalData);
+    const rows = buildQuestionAnswerRowsForAi(evalData);
     const answeredRows = rows.filter((row) => row.isAnswered);
     const unansweredRows = rows.filter((row) => !row.isAnswered);
     const numericRows = rows.filter((row) => row.hasNumericAnswer);

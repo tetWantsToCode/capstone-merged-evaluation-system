@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { questionnaireAPI, classAPI } from "../../services/api";
@@ -45,13 +45,7 @@ const Questionnaires = () => {
 
   const { currentPage, totalPages, paginatedData, goToPage } = usePagination(questionnaires, 10);
 
-  useEffect(() => {
-    fetchQuestionnaires();
-    fetchClasses();
-    checkGoogleLink();
-  }, []);
-
-  const checkGoogleLink = async () => {
+  const checkGoogleLink = useCallback(async () => {
     try {
       const userStr = localStorage.getItem('user');
       const token = userStr ? JSON.parse(userStr)?.token : null;
@@ -73,7 +67,7 @@ const Questionnaires = () => {
       setGoogleLinked(false);
       return false;
     }
-  };
+  }, [toast]);
 
   const fetchQuestionnaires = async () => {
     try {
@@ -88,7 +82,7 @@ const Questionnaires = () => {
     }
   };
 
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     try {
       const data = await classAPI.getAllClasses();
       const user = JSON.parse(localStorage.getItem('user'));
@@ -101,7 +95,13 @@ const Questionnaires = () => {
     } catch (err) {
       toast.error('Error fetching classes');
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchQuestionnaires();
+    fetchClasses();
+    checkGoogleLink();
+  }, [checkGoogleLink, fetchClasses]);
 
   const handleDeleteQuestionnaire = (id) => {
     setConfirmModal({
@@ -163,12 +163,6 @@ const Questionnaires = () => {
     } catch (err) {
       toast.error('Error updating class assignments: ' + err.message);
     }
-  };
-
-  const openAssignModal = (questionnaire) => {
-    setSelectedQuestionnaire(questionnaire);
-    setSelectedClasses(questionnaire.assignedClassIds || []);
-    setShowAssignModal(true);
   };
 
   const handleDuplicateQuestionnaire = async (questionnaire) => {

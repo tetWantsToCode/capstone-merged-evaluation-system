@@ -43,13 +43,6 @@ const CreateQuestionnaire = () => {
     target: "ADVISER"
   });
 
-  const [newSection, setNewSection] = useState({
-    sectionTitle: "",
-    sectionDescription: "",
-    evaluateIndividuals: false,
-    items: []
-  });
-
   const [newQuestion, setNewQuestion] = useState({
     questionText: "",
     questionDescription: "",

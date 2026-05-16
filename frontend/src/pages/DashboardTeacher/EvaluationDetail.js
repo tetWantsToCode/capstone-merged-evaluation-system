@@ -96,6 +96,18 @@ const EvaluationDetail = () => {
   }, []);
 
   useEffect(() => {
+    const loadEvaluation = async () => {
+      try {
+        setLoading(true);
+        const data = await teacherReportAPI.getEvaluationDetails(evaluationId);
+        setEvaluation(data);
+      } catch (err) {
+        setError("Failed to load evaluation: " + err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     loadEvaluation();
   }, [evaluationId]);
 
@@ -126,22 +138,6 @@ const EvaluationDetail = () => {
       window.removeEventListener("keydown", handleEscape);
     };
   }, [isInfoModalOpen]);
-
-  const loadEvaluation = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await teacherReportAPI.getEvaluationDetails(evaluationId);
-      setEvaluation(data);
-    } catch (err) {
-      setError("Failed to load evaluation: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [evaluationId]);
-
-  useEffect(() => {
-    loadEvaluation();
-  }, [loadEvaluation]);
 
   const toSortedNumber = (value) => {
     const parsed = Number(value);
