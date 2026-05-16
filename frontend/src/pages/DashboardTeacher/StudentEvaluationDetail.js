@@ -115,6 +115,89 @@ const StudentEvaluationDetail = () => {
     navigate("/teacher/reports");
   };
 
+  const toSortedNumber = useCallback((value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+  }, []);
+
+  const formatAnswerValue = useCallback((score, item) => {
+    if (!score) return "Not answered";
+    const parts = [];
+    if (score.numericScore !== null && score.numericScore !== undefined) {
+      const hasScale = item && item.minScore !== null && item.minScore !== undefined
+        && item.maxScore !== null && item.maxScore !== undefined;
+      if (hasScale) {
+        parts.push(`${score.numericScore} (Scale ${item.minScore}-${item.maxScore})`);
+      } else {
+        parts.push(String(score.numericScore));
+      }
+    }
+    if (score.textResponse && score.textResponse.trim()) {
+      parts.push(score.textResponse.trim());
+    }
+    return parts.length ? parts.join(" | ") : "Not answered";
+  }, []);
+
+  // Helper function for building AI context - extracted to avoid issues in render
+  const buildQuestionAnswerRowsForAi = useCallback((evalData) => {
+    if (!evalData) return [];
+    const questionnaire = evalData.questionnaire || {};
+    const scores = Array.isArray(evalData.scores) ? evalData.scores : [];
+    const sections = Array.isArray(questionnaire.sections) ? questionnaire.sections : [];
+    const standaloneItems = Array.isArray(questionnaire.items) ? questionnaire.items : [];
+
+    const scoreByItemId = new Map(
+      scores
+        .filter((score) => score.questionnaireItemId !== null && score.questionnaireItemId !== undefined)
+        .map((score) => [score.questionnaireItemId, score])
+    );
+
+    const rows = [];
+    sections
+      .slice()
+      .sort((a, b) => toSortedNumber(a.orderIndex) - toSortedNumber(b.orderIndex))
+      .forEach((section) => {
+        const sectionItems = Array.isArray(section.items) ? section.items : [];
+        sectionItems
+          .slice()
+          .sort((a, b) => toSortedNumber(a.orderIndex) - toSortedNumber(b.orderIndex))
+          .forEach((item) => {
+            const score = scoreByItemId.get(item.id);
+            const hasNumericAnswer = score?.numericScore !== null && score?.numericScore !== undefined;
+            const hasTextAnswer = !!(score?.textResponse && score.textResponse.trim());
+            rows.push({
+              key: item.id ?? `section-${section.id}-${rows.length}`,
+              sectionTitle: section.sectionTitle || null,
+              questionText: item.questionText || score?.questionText || "Untitled question",
+              answerText: formatAnswerValue(score, item),
+              hasNumericAnswer,
+              hasTextAnswer,
+              isAnswered: hasNumericAnswer || hasTextAnswer,
+            });
+          });
+      });
+
+    standaloneItems
+      .slice()
+      .sort((a, b) => toSortedNumber(a.orderIndex) - toSortedNumber(b.orderIndex))
+      .forEach((item) => {
+        const score = scoreByItemId.get(item.id);
+        const hasNumericAnswer = score?.numericScore !== null && score?.numericScore !== undefined;
+        const hasTextAnswer = !!(score?.textResponse && score.textResponse.trim());
+        rows.push({
+          key: item.id ?? `item-${rows.length}`,
+          sectionTitle: null,
+          questionText: item.questionText || score?.questionText || "Untitled question",
+          answerText: formatAnswerValue(score, item),
+          hasNumericAnswer,
+          hasTextAnswer,
+          isAnswered: hasNumericAnswer || hasTextAnswer,
+        });
+      });
+
+    return rows;
+  }, [toSortedNumber, formatAnswerValue]);
+
   const buildAiContext = useCallback((evalData) => {
     const rows = buildQuestionAnswerRowsForAi(evalData);
     const answeredRows = rows.filter((row) => row.isAnswered);
@@ -217,29 +300,6 @@ const StudentEvaluationDetail = () => {
     };
   }, [isInfoModalOpen]);
 
-  const toSortedNumber = (value) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
-  };
-
-  const formatAnswerValue = (score, item) => {
-    if (!score) return "Not answered";
-    const parts = [];
-    if (score.numericScore !== null && score.numericScore !== undefined) {
-      const hasScale = item && item.minScore !== null && item.minScore !== undefined
-        && item.maxScore !== null && item.maxScore !== undefined;
-      if (hasScale) {
-        parts.push(`${score.numericScore} (Scale ${item.minScore}-${item.maxScore})`);
-      } else {
-        parts.push(String(score.numericScore));
-      }
-    }
-    if (score.textResponse && score.textResponse.trim()) {
-      parts.push(score.textResponse.trim());
-    }
-    return parts.length ? parts.join(" | ") : "Not answered";
-  };
-
   const questionAnswerRows = useMemo(() => {
     const buildQuestionAnswerRows = (evalData) => {
       if (!evalData) return [];
@@ -301,67 +361,7 @@ const StudentEvaluationDetail = () => {
     };
 
     return buildQuestionAnswerRows(evaluation);
-  }, [evaluation]);
-
-  // Helper function for building AI context - extracted to avoid issues in render
-  const buildQuestionAnswerRowsForAi = useCallback((evalData) => {
-    if (!evalData) return [];
-    const questionnaire = evalData.questionnaire || {};
-    const scores = Array.isArray(evalData.scores) ? evalData.scores : [];
-    const sections = Array.isArray(questionnaire.sections) ? questionnaire.sections : [];
-    const standaloneItems = Array.isArray(questionnaire.items) ? questionnaire.items : [];
-
-    const scoreByItemId = new Map(
-      scores
-        .filter((score) => score.questionnaireItemId !== null && score.questionnaireItemId !== undefined)
-        .map((score) => [score.questionnaireItemId, score])
-    );
-
-    const rows = [];
-    sections
-      .slice()
-      .sort((a, b) => toSortedNumber(a.orderIndex) - toSortedNumber(b.orderIndex))
-      .forEach((section) => {
-        const sectionItems = Array.isArray(section.items) ? section.items : [];
-        sectionItems
-          .slice()
-          .sort((a, b) => toSortedNumber(a.orderIndex) - toSortedNumber(b.orderIndex))
-          .forEach((item) => {
-            const score = scoreByItemId.get(item.id);
-            const hasNumericAnswer = score?.numericScore !== null && score?.numericScore !== undefined;
-            const hasTextAnswer = !!(score?.textResponse && score.textResponse.trim());
-            rows.push({
-              key: item.id ?? `section-${section.id}-${rows.length}`,
-              sectionTitle: section.sectionTitle || null,
-              questionText: item.questionText || score?.questionText || "Untitled question",
-              answerText: formatAnswerValue(score, item),
-              hasNumericAnswer,
-              hasTextAnswer,
-              isAnswered: hasNumericAnswer || hasTextAnswer,
-            });
-          });
-      });
-
-    standaloneItems
-      .slice()
-      .sort((a, b) => toSortedNumber(a.orderIndex) - toSortedNumber(b.orderIndex))
-      .forEach((item) => {
-        const score = scoreByItemId.get(item.id);
-        const hasNumericAnswer = score?.numericScore !== null && score?.numericScore !== undefined;
-        const hasTextAnswer = !!(score?.textResponse && score.textResponse.trim());
-        rows.push({
-          key: item.id ?? `item-${rows.length}`,
-          sectionTitle: null,
-          questionText: item.questionText || score?.questionText || "Untitled question",
-          answerText: formatAnswerValue(score, item),
-          hasNumericAnswer,
-          hasTextAnswer,
-          isAnswered: hasNumericAnswer || hasTextAnswer,
-        });
-      });
-
-    return rows;
-  }, [toSortedNumber, formatAnswerValue]);
+  }, [evaluation, toSortedNumber, formatAnswerValue]);
 
   const summarySnapshot = useMemo(() => {
     if (!evaluation) return {};
