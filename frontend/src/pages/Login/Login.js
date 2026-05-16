@@ -14,7 +14,7 @@ function Login() {
   const navigate = useNavigate();
   const toast = useToast();
   const oauthHandledRef = useRef(false);
-  const [error, setError] = useState('');
+  const [, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {

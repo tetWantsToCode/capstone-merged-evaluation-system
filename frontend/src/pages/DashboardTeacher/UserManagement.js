@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { userManagementAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
@@ -27,11 +27,7 @@ function UserManagement() {
   const [importUpdatedStudents, setImportUpdatedStudents] = useState([]);
   const [importSummary, setImportSummary] = useState('');
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const data = await userManagementAPI.getUsers();
@@ -41,7 +37,11 @@ function UserManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const handleImport = async (e) => {
     e.preventDefault();

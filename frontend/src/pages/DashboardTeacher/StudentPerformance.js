@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronRight, X, RefreshCw } from "lucide-react";
+import { ChevronRight, RefreshCw } from "lucide-react";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { performanceAPI } from "../../services/api";
 import "./Teacher.css";
@@ -12,14 +12,6 @@ const API_BASE_URL =
 const QA_FILTER_OPTIONS = ["all", "withScores", "textAnswers", "unanswered"];
 
 // ─── Shared AI helpers (mirrors EvaluationDetail.js) ────────────────────────
-
-const EVIDENCE_STOP_WORDS = new Set([
-  "the","and","for","with","from","that","this","have","has","were","was","are","is","you",
-  "your","their","they","them","into","onto","about","what","when","where","which","while",
-  "there","here","been","being","than","then","very","more","most","some","many","much",
-  "only","just","also","over","under","after","before","because","through","response","responses",
-  "question","questions","answer","answers","general","comments","team","student","peer","self",
-]);
 
 const isLikelySectionTitle = (line) => {
   if (!line) return false;
@@ -44,7 +36,7 @@ const parseAiFeedbackSections = (feedbackText) => {
 
   lines.forEach((line) => {
     if (!line) return;
-    const colonMatch = line.match(/^([A-Za-z][A-Za-z\s/&()\-]{1,60}):\s*(.*)$/);
+    const colonMatch = line.match(/^([A-Za-z][A-Za-z\s/&()-]{1,60}):\s*(.*)$/);
     if (colonMatch && !line.startsWith("- ") && !line.startsWith("• ")) {
       current = { title: colonMatch[1].trim(), paragraphs: [], bullets: [] };
       sections.push(current);
@@ -64,11 +56,6 @@ const parseAiFeedbackSections = (feedbackText) => {
     }
   });
   return sections;
-};
-
-const toSortedNumber = (v) => {
-  const p = Number(v);
-  return Number.isFinite(p) ? p : Number.MAX_SAFE_INTEGER;
 };
 
 // ─── Q&A row builder (works for both individual and peer eval data) ──────────

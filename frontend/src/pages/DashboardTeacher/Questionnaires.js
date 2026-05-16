@@ -29,7 +29,7 @@ const Questionnaires = () => {
   const [questionnaires, setQuestionnaires] = useState([]);
   const [classes, setClasses] = useState([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [selectedQuestionnaire, setSelectedQuestionnaire] = useState(null);
+  const [selectedQuestionnaire] = useState(null);
   const [selectedClasses, setSelectedClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

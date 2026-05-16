@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { teacherReportAPI } from "../../services/api";
@@ -115,6 +115,66 @@ const StudentEvaluationDetail = () => {
     navigate("/teacher/reports");
   };
 
+  const buildAiContext = (evalData) => {
+    const rows = buildQuestionAnswerRowsForAi(evalData);
+    const answeredRows = rows.filter((row) => row.isAnswered);
+    const unansweredRows = rows.filter((row) => !row.isAnswered);
+    const numericRows = rows.filter((row) => row.hasNumericAnswer);
+    const textRows = rows.filter((row) => row.hasTextAnswer);
+
+    const questionLines = answeredRows.map((row, index) => {
+      const sectionLabel = row.sectionTitle ? ` [Section: ${row.sectionTitle}]` : "";
+      return `${index + 1}. Question${sectionLabel}: ${row.questionText}\n   Answer: ${row.answerText}`;
+    });
+
+    return [
+      `Questionnaire: ${evalData?.questionnaire?.title || "N/A"}`,
+      `Team: ${evalData?.teamName || "N/A"}`,
+      `Evaluator: ${evalData?.evaluatorName || "N/A"}`,
+      `Evaluatee: ${evalData?.evaluateeName || "N/A"}`,
+      `Type: ${evalData?.isSelf ? "Self-Evaluation" : "Peer-Evaluation"}`,
+      `Summary Metrics: answered=${answeredRows.length}/${rows.length}, numericAnswers=${numericRows.length}, textAnswers=${textRows.length}, unanswered=${unansweredRows.length}`,
+      `Computed Average Score: ${evalData?.averageScore !== null && evalData?.averageScore !== undefined ? evalData.averageScore : "Not enough data from responses"}`,
+      "Important constraints: summarize only what is explicitly present in the answers; do not invent data; if evidence is insufficient, write 'Not enough data from responses'.",
+      "Answered Responses:",
+      questionLines.length ? questionLines.join("\n") : "No responses recorded.",
+      unansweredRows.length
+        ? `Unanswered Questions: ${unansweredRows.slice(0, 8).map((row) => row.questionText).join(" | ")}`
+        : "Unanswered Questions: None",
+    ].join("\n\n");
+  };
+
+  const generateAiFeedback = useCallback(async (evalData) => {
+    if (!token || !evalData) return;
+    setAiFeedbackLoading(true);
+    setAiFeedbackError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/ai/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          message: "Summarize this student evaluation using only the provided questionnaire answers. Do not invent data or unsupported claims. Use exactly these sections in this order: Overall Score, Performance Level, Key Strengths, Key Issues, Brief Summary, Suggested Actions.",
+          contextType: "response_summary",
+          context: buildAiContext(evalData),
+          history: [],
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.message || data?.error || `Failed to generate AI feedback (HTTP ${res.status})`);
+      }
+      setAiFeedback(data?.reply || "AI feedback unavailable.");
+    } catch (err) {
+      setAiFeedbackError(err.message || "Failed to generate AI feedback");
+      setAiFeedback("");
+    } finally {
+      setAiFeedbackLoading(false);
+    }
+  }, [token]);
+
   useEffect(() => {
     const loadEvaluation = async () => {
       try {
@@ -134,7 +194,7 @@ const StudentEvaluationDetail = () => {
   useEffect(() => {
     if (!evaluation || !token) return;
     generateAiFeedback(evaluation);
-  }, [evaluation, token]);
+  }, [evaluation, token, generateAiFeedback]);
 
   useEffect(() => {
     if (!isInfoModalOpen) {
@@ -410,66 +470,6 @@ const StudentEvaluationDetail = () => {
       toast.success("Copied to clipboard");
     } catch {
       toast.error("Failed to copy");
-    }
-  };
-
-  const buildAiContext = (evalData) => {
-    const rows = buildQuestionAnswerRowsForAi(evalData);
-    const answeredRows = rows.filter((row) => row.isAnswered);
-    const unansweredRows = rows.filter((row) => !row.isAnswered);
-    const numericRows = rows.filter((row) => row.hasNumericAnswer);
-    const textRows = rows.filter((row) => row.hasTextAnswer);
-
-    const questionLines = answeredRows.map((row, index) => {
-      const sectionLabel = row.sectionTitle ? ` [Section: ${row.sectionTitle}]` : "";
-      return `${index + 1}. Question${sectionLabel}: ${row.questionText}\n   Answer: ${row.answerText}`;
-    });
-
-    return [
-      `Questionnaire: ${evalData?.questionnaire?.title || "N/A"}`,
-      `Team: ${evalData?.teamName || "N/A"}`,
-      `Evaluator: ${evalData?.evaluatorName || "N/A"}`,
-      `Evaluatee: ${evalData?.evaluateeName || "N/A"}`,
-      `Type: ${evalData?.isSelf ? "Self-Evaluation" : "Peer-Evaluation"}`,
-      `Summary Metrics: answered=${answeredRows.length}/${rows.length}, numericAnswers=${numericRows.length}, textAnswers=${textRows.length}, unanswered=${unansweredRows.length}`,
-      `Computed Average Score: ${evalData?.averageScore !== null && evalData?.averageScore !== undefined ? evalData.averageScore : "Not enough data from responses"}`,
-      "Important constraints: summarize only what is explicitly present in the answers; do not invent data; if evidence is insufficient, write 'Not enough data from responses'.",
-      "Answered Responses:",
-      questionLines.length ? questionLines.join("\n") : "No responses recorded.",
-      unansweredRows.length
-        ? `Unanswered Questions: ${unansweredRows.slice(0, 8).map((row) => row.questionText).join(" | ")}`
-        : "Unanswered Questions: None",
-    ].join("\n\n");
-  };
-
-  const generateAiFeedback = async (evalData) => {
-    if (!token || !evalData) return;
-    setAiFeedbackLoading(true);
-    setAiFeedbackError(null);
-    try {
-      const res = await fetch(`${API_BASE_URL}/ai/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          message: "Summarize this student evaluation using only the provided questionnaire answers. Do not invent data or unsupported claims. Use exactly these sections in this order: Overall Score, Performance Level, Key Strengths, Key Issues, Brief Summary, Suggested Actions.",
-          contextType: "response_summary",
-          context: buildAiContext(evalData),
-          history: [],
-        }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.message || data?.error || `Failed to generate AI feedback (HTTP ${res.status})`);
-      }
-      setAiFeedback(data?.reply || "AI feedback unavailable.");
-    } catch (err) {
-      setAiFeedbackError(err.message || "Failed to generate AI feedback");
-      setAiFeedback("");
-    } finally {
-      setAiFeedbackLoading(false);
     }
   };
 

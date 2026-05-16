@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { UserCheck, GraduationCap, Bell } from "lucide-react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import PendingEvaluationsModal from "../../components/Modal/PendingEvaluationsModal";
 import { classAPI, studentAPI, teamAPI, questionnaireAPI, teacherReportAPI } from "../../services/api";
@@ -10,16 +9,12 @@ import Pagination from "../../components/Pagination/Pagination";
 import "./Teacher.css";
 
 const Teacher = () => {
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [classes, setClasses] = useState([]);
   const [students, setStudents] = useState([]);
   const [teams, setTeams] = useState([]);
   const [questionnaires, setQuestionnaires] = useState([]);
-  const [classSearch, setClassSearch] = useState("");
   const [showTeamsModal, setShowTeamsModal] = useState(false);
-  const [selectedClass, setSelectedClass] = useState(null);
+  const [selectedClass] = useState(null);
   const [showTeamMembersModal, setShowTeamMembersModal] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [adviserPending, setAdviserPending] = useState([]);
@@ -38,7 +33,6 @@ const Teacher = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        setLoading(true);
         setError(null);
 
         if (!currentUser?.id) {
@@ -78,7 +72,6 @@ const Teacher = () => {
           }
         }
 
-        setClasses(teacherClasses);
         setStudents(teacherStudents);
         setTeams(teacherTeams);
         setQuestionnaires(questionnairesMap);
@@ -108,27 +101,21 @@ const Teacher = () => {
         }
       } catch (e) {
         setError(e?.message || "Failed to load dashboard data");
-      } finally {
-        setLoading(false);
       }
     };
 
     load();
   }, [currentUser]);
 
-  const teamsByClassId = useMemo(() => {
-    const map = new Map();
-    for (const t of teams) {
-      const key = t.classId;
-      map.set(key, (map.get(key) || 0) + 1);
-    }
-    return map;
-  }, [teams]);
+  const filteredLogs = useMemo(() => {
+    const term = logSearch.trim().toLowerCase();
+    if (!term) return activityLogs;
+    return activityLogs.filter(log => 
+      log.message?.toLowerCase().includes(term)
+    );
+  }, [activityLogs, logSearch]);
 
-  const handleManageClass = (classItem) => {
-    setSelectedClass(classItem);
-    setShowTeamsModal(true);
-  };
+  const { currentPage: curPageLogs, totalPages: totPageLogs, paginatedData: pagLogs, goToPage: goPageLogs } = usePagination(filteredLogs, 5);
 
   const getTeamsForClass = (classId) => {
     return teams.filter(t => t.classId === classId);
@@ -142,38 +129,12 @@ const Teacher = () => {
     return questionnaires[classId] || [];
   };
 
-  const filteredClasses = useMemo(() => {
-    const normalizedSearch = classSearch.trim().toLowerCase();
-
-    return classes.filter((c) => {
-      const classText = `${c.name || ""} ${c.section || ""}`.toLowerCase();
-
-      if (!normalizedSearch) {
-        return true;
-      }
-
-      return classText.includes(normalizedSearch);
-    });
-  }, [classes, classSearch]);
-
-  const filteredLogs = useMemo(() => {
-    const term = logSearch.trim().toLowerCase();
-    if (!term) return activityLogs;
-    return activityLogs.filter(log => 
-      log.message?.toLowerCase().includes(term)
-    );
-  }, [activityLogs, logSearch]);
-
-  const { currentPage: curPageLogs, totalPages: totPageLogs, paginatedData: pagLogs, goToPage: goPageLogs } = usePagination(filteredLogs, 5);
-
   const getStudentsForTeam = (team) => {
     if (!team || !team.memberIds || team.memberIds.length === 0) return [];
     // Convert memberIds to strings for comparison since IDs can be stored as different types
     const memberIdStrings = team.memberIds.map(id => String(id));
     return students.filter(s => s && memberIdStrings.includes(String(s.id)));
   };
-
-  const { currentPage: curPageClasses, totalPages: totPageClasses, paginatedData: pagClasses, goToPage: goPageClasses } = usePagination(filteredClasses, 10);
   
   const teamsForSelectedClass = selectedClass ? getTeamsForClass(selectedClass.id) : [];
   const { currentPage: curPageTeams, totalPages: totPageTeams, paginatedData: pagTeams, goToPage: goPageTeams } = usePagination(teamsForSelectedClass, 10);

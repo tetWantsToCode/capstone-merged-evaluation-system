@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { studentAPI, classAPI } from "../../services/api";
 import { useToast } from "../../contexts/ToastContext";
@@ -13,14 +13,7 @@ const Students = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { currentPage, totalPages, paginatedData, goToPage } = usePagination(students, 10);
-
-  useEffect(() => {
-    fetchStudents();
-    fetchClasses();
-  }, []);
-
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -32,16 +25,23 @@ const Students = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     try {
       const data = await classAPI.getAllClasses();
       setClasses(data);
     } catch (err) {
       toast.error('Failed to load classes');
     }
-  };
+  }, [toast]);
+
+  const { currentPage, totalPages, paginatedData, goToPage } = usePagination(students, 10);
+
+  useEffect(() => {
+    fetchStudents();
+    fetchClasses();
+  }, [fetchStudents, fetchClasses]);
 
   return (
     <div className="teacher-container">

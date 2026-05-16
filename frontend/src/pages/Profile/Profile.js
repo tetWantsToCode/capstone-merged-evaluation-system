@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { authAPI } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import TeacherSidebar from '../../components/Sidebar/TeacherSidebar';
@@ -43,19 +43,7 @@ const Profile = () => {
   const [aiKeyLoading, setAiKeyLoading] = useState(false);
   const [showAiKey, setShowAiKey] = useState(false);
 
-  useEffect(() => {
-    fetchUserProfile();
-  }, []);
-
-  useEffect(() => {
-    if (user?.role === 'TEACHER') {
-      fetchGoogleSheetsUrl();
-      fetchAiKey();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.role]);
-
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     try {
       const currentUser = authAPI.getCurrentUser();
       setUser(currentUser);
@@ -64,7 +52,19 @@ const Profile = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, [fetchUserProfile]);
+
+  useEffect(() => {
+    if (user?.role === 'TEACHER') {
+      fetchGoogleSheetsUrl();
+      fetchAiKey();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]);
 
   const getToken = () => {
     try {
@@ -80,7 +80,7 @@ const Profile = () => {
     if (!token) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/user-management/google-sheets/url`, {
+      const res = await fetchWithLocalFallback('/api/user-management/google-sheets/url', {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -101,7 +101,7 @@ const Profile = () => {
     if (!token) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/user-management/ai-key`, {
+      const res = await fetchWithLocalFallback('/api/user-management/ai-key', {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -129,7 +129,7 @@ const Profile = () => {
 
     try {
       setSheetsUrlLoading(true);
-      const res = await fetch(`${API_BASE_URL}/api/user-management/google-sheets/url`, {
+      const res = await fetchWithLocalFallback('/api/user-management/google-sheets/url', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -165,7 +165,7 @@ const Profile = () => {
 
     try {
       setAiKeyLoading(true);
-      const res = await fetch(`${API_BASE_URL}/api/user-management/ai-key`, {
+      const res = await fetchWithLocalFallback('/api/user-management/ai-key', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -200,7 +200,7 @@ const Profile = () => {
 
     try {
       setAiKeyLoading(true);
-      const res = await fetch(`${API_BASE_URL}/api/user-management/ai-key`, {
+      const res = await fetchWithLocalFallback('/api/user-management/ai-key', {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
