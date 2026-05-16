@@ -15,24 +15,23 @@ const Advisers = () => {
   const { currentPage, totalPages, paginatedData, goToPage } = usePagination(advisers, 10);
 
   useEffect(() => {
+    const fetchAdvisers = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const data = await userManagementAPI.getUsers();
+        // Filter only ADVISER role users
+        const adviserUsers = data.filter(user => user.role === 'ADVISER');
+        setAdvisers(adviserUsers);
+      } catch (err) {
+        setError('Failed to load advisers: ' + err.message);
+        toast.error('Failed to load advisers: ' + err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchAdvisers();
-  }, []);
-
-  const fetchAdvisers = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const data = await userManagementAPI.getUsers();
-      // Filter only ADVISER role users
-      const adviserUsers = data.filter(user => user.role === 'ADVISER');
-      setAdvisers(adviserUsers);
-    } catch (err) {
-      setError('Failed to load advisers: ' + err.message);
-      toast.error('Failed to load advisers: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [toast]);
 
   return (
     <div className="teacher-container">

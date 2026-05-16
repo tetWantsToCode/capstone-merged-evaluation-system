@@ -66,7 +66,7 @@ const StudentEvaluateForm = () => {
       }
     };
     fetchGroupForm();
-  }, [questionnaireId, currentUser]);
+  }, [questionnaireId, currentUser, navigate, toast]);
 
   useEffect(() => {
     const handleBeforeUnload = (e) => {
