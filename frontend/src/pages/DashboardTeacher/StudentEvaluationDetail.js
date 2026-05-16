@@ -173,7 +173,7 @@ const StudentEvaluationDetail = () => {
     } finally {
       setAiFeedbackLoading(false);
     }
-  }, [token]);
+  }, [token, buildAiContext]);
 
   useEffect(() => {
     const loadEvaluation = async () => {

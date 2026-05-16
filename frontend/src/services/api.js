@@ -1051,7 +1051,7 @@ export const performanceAPI = {
   },
 };
 
-export default {
+const api = {
   authAPI,
   userAPI,
   classAPI,
@@ -1065,3 +1065,5 @@ export default {
   userManagementAPI,
   performanceAPI
 };
+
+export default api;
