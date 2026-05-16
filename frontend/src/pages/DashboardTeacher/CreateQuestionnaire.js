@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { questionnaireAPI } from "../../services/api";
@@ -64,13 +64,8 @@ const CreateQuestionnaire = () => {
 
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [editingQuestionIndex, setEditingQuestionIndex] = useState(null);
-  const [usesSections, setUsesSections] = useState(true);
 
-  useEffect(() => {
-    checkGoogleLink();
-  }, []);
-
-  const checkGoogleLink = async () => {
+  const checkGoogleLink = useCallback(async () => {
     try {
       const userStr = localStorage.getItem('user');
       const token = userStr ? JSON.parse(userStr)?.token : null;
@@ -92,7 +87,11 @@ const CreateQuestionnaire = () => {
       setGoogleLinked(false);
       return false;
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    checkGoogleLink();
+  }, [checkGoogleLink]);
 
   const handleCreateQuestionnaire = async (e) => {
     e.preventDefault();
@@ -201,44 +200,6 @@ const CreateQuestionnaire = () => {
     toast.success('Question removed');
   };
 
-  const handleCreateSection = () => {
-    if (!newSection.sectionTitle.trim()) {
-      toast.error('Please enter a section title');
-      return;
-    }
-
-    setFormData({
-      ...formData,
-      sections: [
-        ...formData.sections,
-        {
-          sectionTitle: newSection.sectionTitle,
-          sectionDescription: newSection.sectionDescription,
-          orderIndex: formData.sections.length,
-          items: []
-        }
-      ]
-    });
-
-    setNewSection({
-      sectionTitle: "",
-      sectionDescription: "",
-      items: []
-    });
-
-    toast.success('Section created!');
-    setActiveSectionIndex(formData.sections.length);
-  };
-
-  const handleRemoveSection = (index) => {
-    const updatedSections = formData.sections.filter((_, i) => i !== index);
-    setFormData({ ...formData, sections: updatedSections });
-    if (activeSectionIndex === index) {
-      setActiveSectionIndex(null);
-    }
-    toast.success('Section removed');
-  };
-
   const handleToggleSectionsMode = () => {
     // Create a new section with an incremented title
     const newSectionNumber = formData.sections.length + 1;
@@ -257,13 +218,6 @@ const CreateQuestionnaire = () => {
     });
     // Set the newly created section as active
     setActiveSectionIndex(formData.sections.length);
-  };
-
-  const getCurrentQuestions = () => {
-    if (activeSectionIndex !== null && formData.sections[activeSectionIndex]) {
-      return formData.sections[activeSectionIndex].items;
-    }
-    return [];
   };
 
   const totalQuestions = formData.sections.reduce((sum, sec) => sum + sec.items.length, 0);
