@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import TeacherSidebar from "../../components/Sidebar/TeacherSidebar";
 import { teacherReportAPI } from "../../services/api";
@@ -44,7 +44,7 @@ const parseAiFeedbackSections = (feedbackText) => {
       return;
     }
 
-    const colonSectionMatch = line.match(/^([A-Za-z][A-Za-z\s/&()\-]{1,60}):\s*(.*)$/);
+    const colonSectionMatch = line.match(/^([A-Za-z][A-Za-z\s/&()-]{1,60}):\s*(.*)$/);
     if (colonSectionMatch && !line.startsWith("- ") && !line.startsWith("• ")) {
       const sectionTitle = colonSectionMatch[1].trim();
       const sectionValue = colonSectionMatch[2].trim();
@@ -127,7 +127,7 @@ const EvaluationDetail = () => {
     };
   }, [isInfoModalOpen]);
 
-  const loadEvaluation = async () => {
+  const loadEvaluation = useCallback(async () => {
     try {
       setLoading(true);
       const data = await teacherReportAPI.getEvaluationDetails(evaluationId);
@@ -137,7 +137,11 @@ const EvaluationDetail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [evaluationId]);
+
+  useEffect(() => {
+    loadEvaluation();
+  }, [loadEvaluation]);
 
   const toSortedNumber = (value) => {
     const parsed = Number(value);
@@ -168,7 +172,7 @@ const EvaluationDetail = () => {
     return parts.length ? parts.join(" | ") : "Not answered";
   };
 
-  const buildQuestionAnswerRows = (evalData) => {
+  const buildQuestionAnswerRows = useCallback((evalData) => {
     const questionnaire = evalData?.questionnaire || {};
     const scores = Array.isArray(evalData?.scores) ? evalData.scores : [];
     const individualStudentScores = Array.isArray(evalData?.individualStudentScores) ? evalData.individualStudentScores : [];
@@ -291,9 +295,9 @@ const EvaluationDetail = () => {
     });
 
     return rows;
-  };
+  }, []);
 
-  const questionAnswerRows = useMemo(() => buildQuestionAnswerRows(evaluation), [evaluation]);
+  const questionAnswerRows = useMemo(() => buildQuestionAnswerRows(evaluation), [buildQuestionAnswerRows, evaluation]);
 
   const summarySnapshot = useMemo(() => {
     const scores = Array.isArray(evaluation?.scores) ? evaluation.scores : [];
