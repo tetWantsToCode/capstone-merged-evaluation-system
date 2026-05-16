@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { questionnaireAPI } from "../../services/api";
 import { useToast } from "../../contexts/ToastContext";
 import "./Teacher.css";
@@ -36,17 +36,7 @@ const QuestionnaireDetailModal = ({ isOpen, onClose, questionnaireId, onUpdate }
   const [initialFormData, setInitialFormData] = useState(null);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && questionnaireId) {
-      fetchQuestionnaireDetails();
-    } else {
-      setIsEditing(false);
-      setQuestionnaire(null);
-      setShowConfirmClose(false);
-    }
-  }, [isOpen, questionnaireId]);
-
-  const fetchQuestionnaireDetails = async () => {
+  const fetchQuestionnaireDetails = useCallback(async () => {
     try {
       setLoading(true);
       const data = await questionnaireAPI.getQuestionnaireById(questionnaireId);
@@ -79,7 +69,17 @@ const QuestionnaireDetailModal = ({ isOpen, onClose, questionnaireId, onUpdate }
     } finally {
       setLoading(false);
     }
-  };
+  }, [questionnaireId, toast, onClose]);
+
+  useEffect(() => {
+    if (isOpen && questionnaireId) {
+      fetchQuestionnaireDetails();
+    } else {
+      setIsEditing(false);
+      setQuestionnaire(null);
+      setShowConfirmClose(false);
+    }
+  }, [isOpen, questionnaireId, fetchQuestionnaireDetails]);
 
   const handleSaveChanges = async (e) => {
     e.preventDefault();
