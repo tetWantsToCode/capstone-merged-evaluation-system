@@ -115,7 +115,7 @@ const StudentEvaluationDetail = () => {
     navigate("/teacher/reports");
   };
 
-  const buildAiContext = (evalData) => {
+  const buildAiContext = useCallback((evalData) => {
     const rows = buildQuestionAnswerRowsForAi(evalData);
     const answeredRows = rows.filter((row) => row.isAnswered);
     const unansweredRows = rows.filter((row) => !row.isAnswered);
@@ -142,7 +142,7 @@ const StudentEvaluationDetail = () => {
         ? `Unanswered Questions: ${unansweredRows.slice(0, 8).map((row) => row.questionText).join(" | ")}`
         : "Unanswered Questions: None",
     ].join("\n\n");
-  };
+  }, [buildQuestionAnswerRowsForAi]);
 
   const generateAiFeedback = useCallback(async (evalData) => {
     if (!token || !evalData) return;
@@ -304,7 +304,7 @@ const StudentEvaluationDetail = () => {
   }, [evaluation]);
 
   // Helper function for building AI context - extracted to avoid issues in render
-  const buildQuestionAnswerRowsForAi = (evalData) => {
+  const buildQuestionAnswerRowsForAi = useCallback((evalData) => {
     if (!evalData) return [];
     const questionnaire = evalData.questionnaire || {};
     const scores = Array.isArray(evalData.scores) ? evalData.scores : [];
@@ -361,7 +361,7 @@ const StudentEvaluationDetail = () => {
       });
 
     return rows;
-  };
+  }, [toSortedNumber, formatAnswerValue]);
 
   const summarySnapshot = useMemo(() => {
     if (!evaluation) return {};
