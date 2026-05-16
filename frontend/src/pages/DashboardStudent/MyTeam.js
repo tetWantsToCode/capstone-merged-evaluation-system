@@ -39,7 +39,7 @@ const MyTeam = () => {
         };
         
         fetchTeam();
-    }, []);
+    }, [toast]);
 
     if (loading) return (
         <div className="teacher-container">
